@@ -19,6 +19,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
@@ -665,7 +666,7 @@ func main() {
 				OS:        runtime.GOOS,
 				Arch:      runtime.GOARCH,
 				GoVersion: runtime.Version(),
-				UptimeSec: int64(time.Since(startedAt).Seconds()),
+				UptimeSec: getSystemUptime(),
 				Time:      time.Now().Format(time.RFC3339),
 			},
 			Network: NetworkInfo{
@@ -834,6 +835,14 @@ func mustHostname() string {
 		return "unknown"
 	}
 	return h
+}
+
+func getSystemUptime() int64 {
+	uptime, err := host.Uptime()
+	if err != nil {
+		return 0
+	}
+	return int64(uptime)
 }
 
 func reverseDNS(ip string, dnsServer string) string {
