@@ -82,9 +82,7 @@
 
       <div class="card span-4" data-module="ram" draggable="true">
         <h3><i class="fas fa-memory"></i> RAM<div class="header-icons"><div class="timer-circle" id="ramTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
-        <div class="kv"><div class="k">Used</div><div class="v mono" id="ramUsed">—</div></div>
-        <div class="kv"><div class="k">Total</div><div class="v mono" id="ramTotal">—</div></div>
-        <div class="kv"><div class="k">Available</div><div class="v mono" id="ramAvailable">—</div></div>
+        <div class="kv"><div class="k">Total / Used / Free (GB)</div><div class="v mono" id="ramSummary">—</div></div>
         <div class="kv"><div class="k">Usage</div><div class="v" id="ramPercent">—</div></div>
         <div class="small" id="ramErr"></div>
       </div>
@@ -441,15 +439,15 @@ async function refreshRAM(){
     const j = await res.json();
     if (j.ram) {
       if (j.ram.error) {
-        document.getElementById("ramUsed").textContent = "—";
-        document.getElementById("ramTotal").textContent = "—";
-        document.getElementById("ramAvailable").textContent = "—";
+        document.getElementById("ramSummary").textContent = "—";
         document.getElementById("ramPercent").textContent = "—";
         document.getElementById("ramErr").textContent = j.ram.error;
       } else {
-        document.getElementById("ramUsed").textContent = formatBytes(j.ram.used || 0);
-        document.getElementById("ramTotal").textContent = formatBytes(j.ram.total || 0);
-        document.getElementById("ramAvailable").textContent = formatBytes(j.ram.available || 0);
+        const toGB = (bytes) => (bytes / (1024 * 1024 * 1024)).toFixed(1);
+        const total = toGB(j.ram.total || 0);
+        const used = toGB(j.ram.used || 0);
+        const available = toGB(j.ram.available || 0);
+        document.getElementById("ramSummary").textContent = total + " / " + used + " / " + available;
         document.getElementById("ramPercent").textContent = (j.ram.percent || 0).toFixed(1) + "%";
         document.getElementById("ramErr").textContent = "";
       }
