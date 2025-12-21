@@ -19,7 +19,7 @@ Accent: #88C0D0
 Display: Default
 */
 
-[data-scheme="default"] :root{
+:root[data-scheme="default"]{
   --bg:#2E3440;
   --panel:#3B4252;
   --panel2:#434C5E;
@@ -40,9 +40,9 @@ Display: Dark
 Border: true
 */
 
-[data-scheme="dark"] :root{
+:root[data-scheme="dark"]{
   --bg:#000000;
-  --panel:#000000;
+  --panel:#090909;
   --panel2:#000000;
   --border:rgba(216,222,233,.12);
   --txt:rgba(216,222,233,.92);

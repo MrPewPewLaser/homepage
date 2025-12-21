@@ -19,7 +19,7 @@ Accent: #FF6B9D
 Display: Default
 */
 
-[data-scheme="default"] :root{
+:root[data-scheme="default"]{
   --bg:#0a0a0f;
   --panel:#151520;
   --panel2:#1a1a2e;
