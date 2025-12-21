@@ -175,80 +175,7 @@ type GitHubCache struct {
 
 var githubCache = &GitHubCache{}
 
-const githubCacheFile = "github_cache.json"
-const githubCacheMaxAge = 24 * time.Hour // Cache valid for 24 hours
-
-type GitHubCacheFile struct {
-	UserRepos GitHubUserRepos `json:"userRepos"`
-	OrgRepos  GitHubOrgRepos  `json:"orgRepos"`
-	LastFetch string          `json:"lastFetch"` // ISO 8601 timestamp
-	HasData   bool            `json:"hasData"`
-}
-
-func loadGitHubCacheFromDisk() {
-	file, err := os.Open(githubCacheFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			log.Printf("Warning: Failed to open GitHub cache file: %v", err)
-		}
-		return
-	}
-	defer file.Close()
-
-	var cacheFile GitHubCacheFile
-	if err := json.NewDecoder(file).Decode(&cacheFile); err != nil {
-		log.Printf("Warning: Failed to decode GitHub cache file: %v", err)
-		return
-	}
-
-	// Parse timestamp
-	lastFetch, err := time.Parse(time.RFC3339, cacheFile.LastFetch)
-	if err != nil {
-		log.Printf("Warning: Failed to parse cache timestamp: %v", err)
-		return
-	}
-
-	// Check if cache is too old
-	if time.Since(lastFetch) > githubCacheMaxAge {
-		log.Printf("GitHub cache file is too old (%v), ignoring", time.Since(lastFetch))
-		return
-	}
-
-	// Load into memory cache
-	githubCache.mu.Lock()
-	githubCache.userRepos = cacheFile.UserRepos
-	githubCache.orgRepos = cacheFile.OrgRepos
-	githubCache.lastFetch = lastFetch
-	githubCache.hasData = cacheFile.HasData
-	githubCache.mu.Unlock()
-
-	log.Printf("Loaded GitHub cache from disk (last fetch: %v ago)", time.Since(lastFetch))
-}
-
-func saveGitHubCacheToDisk(userRepos GitHubUserRepos, orgRepos GitHubOrgRepos) {
-	cacheFile := GitHubCacheFile{
-		UserRepos: userRepos,
-		OrgRepos:  orgRepos,
-		LastFetch: time.Now().Format(time.RFC3339),
-		HasData:   len(userRepos.Repos) > 0 || len(orgRepos.Repos) > 0,
-	}
-
-	file, err := os.Create(githubCacheFile)
-	if err != nil {
-		log.Printf("Warning: Failed to create GitHub cache file: %v", err)
-		return
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(cacheFile); err != nil {
-		log.Printf("Warning: Failed to encode GitHub cache file: %v", err)
-		return
-	}
-
-	log.Printf("Saved GitHub cache to disk")
-}
+const githubCacheMaxAge = 15 * time.Minute // In-memory cache valid for 15 minutes
 
 // findBlockEnd finds the end of a CSS block (the matching closing brace)
 func findBlockEnd(content string, startPos int) int {
@@ -531,9 +458,6 @@ func init() {
 
 	// Sort templates (nordic first, then alphabetical)
 	templatesList = sortTemplates(templatesList)
-
-	// Load GitHub cache from disk on startup
-	loadGitHubCacheFromDisk()
 }
 
 func sortTemplates(templates []string) []string {
@@ -1234,25 +1158,13 @@ func itoaParse(s string, out *int64) error {
 }
 
 func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, error) {
-	// Check cache first (both memory and disk)
+	// Check in-memory cache first
 	githubCache.mu.RLock()
 	timeSinceLastFetch := time.Since(githubCache.lastFetch)
 	hasCachedData := githubCache.hasData
 	cachedUserRepos := githubCache.userRepos
 	cachedOrgRepos := githubCache.orgRepos
 	githubCache.mu.RUnlock()
-
-	// If memory cache is empty or too old, try loading from disk
-	if !hasCachedData || timeSinceLastFetch > githubCacheMaxAge {
-		loadGitHubCacheFromDisk()
-		// Re-read after loading from disk
-		githubCache.mu.RLock()
-		timeSinceLastFetch = time.Since(githubCache.lastFetch)
-		hasCachedData = githubCache.hasData
-		cachedUserRepos = githubCache.userRepos
-		cachedOrgRepos = githubCache.orgRepos
-		githubCache.mu.RUnlock()
-	}
 
 	// If we have cached data, only refresh every 15 minutes
 	// If we don't have cached data, allow refresh every 5 minutes
@@ -1488,7 +1400,7 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 		return userRepos, orgRepos, nil
 	}
 
-	// Cache successful results (only if we have data and no errors)
+	// Cache successful results in memory (only if we have data and no errors)
 	if len(userRepos.Repos) > 0 || len(orgRepos.Repos) > 0 {
 		githubCache.mu.Lock()
 		githubCache.userRepos = userRepos
@@ -1496,9 +1408,6 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 		githubCache.lastFetch = time.Now()
 		githubCache.hasData = true
 		githubCache.mu.Unlock()
-
-		// Save to disk
-		saveGitHubCacheToDisk(userRepos, orgRepos)
 
 		log.Printf("GitHub: cached %d user repos and %d org repos", len(userRepos.Repos), len(orgRepos.Repos))
 	}

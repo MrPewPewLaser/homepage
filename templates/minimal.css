@@ -266,7 +266,7 @@ a{color:inherit}
 .timer-circle{
   width:14px;
   height:14px;
-  border-radius:2px;
+  border-radius:50%;
   border:2px solid var(--border);
   background:var(--panel);
   margin-left:auto;
@@ -278,20 +278,19 @@ a{color:inherit}
 }
 .timer-circle:hover{
   border-color:var(--accent);
-  background:var(--accent);
 }
 .timer-circle::before{
   content:"";
   position:absolute;
   inset:0;
-  border-radius:2px;
-  background:var(--accent);
-  opacity:calc(var(--progress-percent, 0%) / 100);
-  transition:opacity 0.5s linear;
+  border-radius:50%;
+  background:conic-gradient(from 0deg, var(--accent) 0%, var(--accent) var(--progress-percent, 0%), transparent var(--progress-percent, 0%));
+  opacity:0.7;
+  transition:background 0.5s linear;
 }
 .timer-circle.paused::before{
+  background:conic-gradient(from 0deg, var(--muted) 0%, var(--muted) 100%);
   opacity:1;
-  background:var(--muted);
 }
 .kv{
   display:flex;

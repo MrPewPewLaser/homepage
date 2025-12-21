@@ -133,7 +133,7 @@
   <div class="main">
     <div class="grid" id="moduleGrid">
       <div class="card span-4" data-module="status" draggable="true">
-        <h3><i class="fas fa-server"></i> Status<i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></h3>
+        <h3><i class="fas fa-server"></i> Status<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div class="badge"><span class="pulse"></span><span id="statusText">Online</span></div>
         <div class="kv"><div class="k">Host</div><div class="v mono" id="host">—</div></div>
         <div class="kv"><div class="k">Uptime</div><div class="v mono" id="uptime">—</div></div>
@@ -158,6 +158,7 @@
         <h3><i class="fas fa-microchip"></i> CPU<div class="header-icons"><div class="timer-circle" id="cpuTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div class="kv"><div class="k">Usage</div><div class="v" id="cpuUsage">—</div></div>
         <div class="small" id="cpuErr"></div>
+        <div class="cpu-graph" id="cpuGraph"></div>
       </div>
 
       <div class="card span-4" data-module="ram" draggable="true">
@@ -179,14 +180,14 @@
       </div>
 
       <div class="card span-6" data-module="links" draggable="true">
-        <h3><i class="fas fa-link"></i> Quick Links<i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></h3>
+        <h3><i class="fas fa-link"></i> Quick Links<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div class="kv"><div class="k">Router</div><div class="v"><a class="btn" href="http://192.168.1.1" target="_blank" rel="noreferrer"><i class="fas fa-network-wired"></i> Open</a></div></div>
         <div class="kv"><div class="k">Proxmox / NAS</div><div class="v"><span class="small">Edit these in HTML</span></div></div>
         <div class="kv"><div class="k">Docs</div><div class="v"><span class="small">Add internal wiki links</span></div></div>
       </div>
 
       <div class="card span-6" data-module="utilities" draggable="true">
-        <h3><i class="fas fa-tools"></i> Utilities<i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></h3>
+        <h3><i class="fas fa-tools"></i> Utilities<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div class="kv"><div class="k">Ping</div><div class="v"><span class="small">Add /api/ping later</span></div></div>
         <div class="kv"><div class="k">Wake-on-LAN</div><div class="v"><span class="small">Add /api/wol later</span></div></div>
         <div class="kv"><div class="k">Service checks</div><div class="v"><span class="small">Add /api/checks later</span></div></div>
@@ -354,6 +355,84 @@ function formatBytes(bytes) {
   return (bytes / Math.pow(k, i)).toFixed(2) + " " + sizes[i];
 }
 
+// CPU history for bar graph
+const minBarWidth = 4; // Minimum width of each bar in pixels
+const barGap = 2; // Gap between bars in pixels
+
+// Load CPU history from localStorage
+let cpuHistory = [];
+try {
+  const saved = localStorage.getItem('cpuHistory');
+  if (saved) {
+    cpuHistory = JSON.parse(saved);
+  }
+} catch (e) {
+  cpuHistory = [];
+}
+
+function saveCpuHistory() {
+  try {
+    localStorage.setItem('cpuHistory', JSON.stringify(cpuHistory));
+  } catch (e) {
+    // Ignore storage errors
+  }
+}
+
+function renderCpuGraph() {
+  const graph = document.getElementById("cpuGraph");
+  if (!graph || cpuHistory.length === 0) return;
+
+  // Create bars for existing history
+  while (graph.children.length < cpuHistory.length) {
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    graph.appendChild(bar);
+  }
+
+  // Update bar heights
+  for (let i = 0; i < cpuHistory.length; i++) {
+    const height = Math.max(2, (cpuHistory[i] / 100) * 26);
+    graph.children[i].style.height = height + "px";
+  }
+}
+
+function updateCpuGraph(usage) {
+  const graph = document.getElementById("cpuGraph");
+  if (!graph) return;
+
+  // Calculate how wide each bar would be if we add one more
+  const containerWidth = graph.clientWidth - 6; // Subtract padding
+  const newBarCount = cpuHistory.length + 1;
+  const barWidthIfAdded = (containerWidth - (barGap * (newBarCount - 1))) / newBarCount;
+
+  // If adding a new bar would make bars less than 4px, remove oldest first
+  if (barWidthIfAdded < minBarWidth && cpuHistory.length > 0) {
+    cpuHistory.shift();
+  }
+
+  // Add new value
+  cpuHistory.push(usage);
+  saveCpuHistory();
+
+  // Create bars if needed
+  while (graph.children.length < cpuHistory.length) {
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    graph.appendChild(bar);
+  }
+
+  // Remove extra bars if needed (from the front - oldest)
+  while (graph.children.length > cpuHistory.length) {
+    graph.removeChild(graph.firstChild);
+  }
+
+  // Update bar heights (max height is 100% = 26px inside the container)
+  for (let i = 0; i < cpuHistory.length; i++) {
+    const height = Math.max(2, (cpuHistory[i] / 100) * 26);
+    graph.children[i].style.height = height + "px";
+  }
+}
+
 async function refreshCPU(){
   try{
     const res = await fetch("/api/system", {cache:"no-store"});
@@ -363,8 +442,10 @@ async function refreshCPU(){
         document.getElementById("cpuUsage").textContent = "—";
         document.getElementById("cpuErr").textContent = j.cpu.error;
       } else {
-        document.getElementById("cpuUsage").textContent = (j.cpu.usage || 0).toFixed(1) + "%";
+        const usage = j.cpu.usage || 0;
+        document.getElementById("cpuUsage").textContent = usage.toFixed(1) + "%";
         document.getElementById("cpuErr").textContent = "";
+        updateCpuGraph(usage);
       }
     }
     startTimer("cpu");
@@ -456,11 +537,36 @@ async function refreshWeather(){
   }
 }
 
-async function refreshGitHub(){
-  try{
-    const res = await fetch("/api/github", {cache:"no-store"});
-    const j = await res.json();
+const GITHUB_CACHE_KEY = 'githubData';
+const GITHUB_CACHE_MAX_AGE = 15 * 60 * 1000; // 15 minutes in milliseconds
 
+function getGitHubCache() {
+  try {
+    const cached = localStorage.getItem(GITHUB_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.timestamp && Date.now() - parsed.timestamp < GITHUB_CACHE_MAX_AGE) {
+        return { data: parsed.data, timestamp: parsed.timestamp };
+      }
+    }
+  } catch (e) {
+    // Ignore cache errors
+  }
+  return null;
+}
+
+function saveGitHubCache(data) {
+  try {
+    localStorage.setItem(GITHUB_CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      data: data
+    }));
+  } catch (e) {
+    // Ignore storage errors
+  }
+}
+
+function renderGitHubData(j) {
     // GitHub user repos
     const userContainer = document.getElementById("githubUserRepos");
     const userErr = document.getElementById("githubUserErr");
@@ -570,7 +676,31 @@ async function refreshGitHub(){
         orgErr.textContent = "";
       }
     }
+}
 
+async function refreshGitHub(forceRefresh = false){
+  try{
+    // Check localStorage cache first (unless forcing refresh)
+    if (!forceRefresh) {
+      const cached = getGitHubCache();
+      if (cached) {
+        renderGitHubData(cached.data);
+        // Set timer based on when the cache was created
+        timers.github.lastUpdate = cached.timestamp;
+        if (timers.github.timer) clearInterval(timers.github.timer);
+        timers.github.timer = setInterval(() => updateTimer("github"), 1000);
+        updateTimer("github");
+        return;
+      }
+    }
+
+    const res = await fetch("/api/github", {cache:"no-store"});
+    const j = await res.json();
+
+    // Save to localStorage cache
+    saveGitHubCache(j);
+
+    renderGitHubData(j);
     startTimer("github");
   } catch(err){
     console.error("Error refreshing GitHub:", err);
@@ -669,6 +799,7 @@ const refreshHandlers = {
 
 // Initial refresh
 refresh();
+renderCpuGraph(); // Render saved CPU history
 refreshCPU();
 refreshRAM();
 refreshDisk();
@@ -867,6 +998,33 @@ setInterval(refreshIP, 7200000); // IP every 2 hours
   align-items: center;
 }
 .card h3 .header-icons a:hover {
+  opacity: 1;
+}
+.card[data-module="cpu"] {
+  display: flex;
+  flex-direction: column;
+}
+.cpu-graph {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+  width: 100%;
+  margin-top: auto;
+  background: rgba(0,0,0,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  padding: 3px;
+}
+.cpu-graph .bar {
+  flex: 1;
+  min-width: 0;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: height 0.3s ease;
+  opacity: 0.8;
+}
+.cpu-graph .bar:last-child {
   opacity: 1;
 }
 </style>
