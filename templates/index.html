@@ -90,11 +90,10 @@
 
       <div class="card span-4" data-module="disk" draggable="true">
         <h3><i class="fas fa-hdd"></i> Disk<div class="header-icons"><div class="timer-circle" id="diskTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
-        <div class="kv"><div class="k">Used</div><div class="v mono" id="diskUsed">—</div></div>
-        <div class="kv"><div class="k">Total</div><div class="v mono" id="diskTotal">—</div></div>
-        <div class="kv"><div class="k">Free</div><div class="v mono" id="diskFree">—</div></div>
+        <div class="kv"><div class="k">Total / Used / Free (GB)</div><div class="v mono" id="diskSummary">—</div></div>
         <div class="kv"><div class="k">Usage</div><div class="v" id="diskPercent">—</div></div>
         <div class="small" id="diskErr"></div>
+        <div class="usage-graph" id="diskGraph"></div>
       </div>
 
       <div class="card span-6" data-module="links" draggable="true">
@@ -361,6 +360,17 @@ try {
   ramHistory = [];
 }
 
+// Load Disk history from localStorage
+let diskHistory = [];
+try {
+  const saved = localStorage.getItem('diskHistory');
+  if (saved) {
+    diskHistory = JSON.parse(saved);
+  }
+} catch (e) {
+  diskHistory = [];
+}
+
 function saveCpuHistory() {
   try {
     localStorage.setItem('cpuHistory', JSON.stringify(cpuHistory));
@@ -372,6 +382,14 @@ function saveCpuHistory() {
 function saveRamHistory() {
   try {
     localStorage.setItem('ramHistory', JSON.stringify(ramHistory));
+  } catch (e) {
+    // Ignore storage errors
+  }
+}
+
+function saveDiskHistory() {
+  try {
+    localStorage.setItem('diskHistory', JSON.stringify(diskHistory));
   } catch (e) {
     // Ignore storage errors
   }
@@ -487,6 +505,61 @@ function updateRamGraph(usage) {
   }
 }
 
+function renderDiskGraph() {
+  const graph = document.getElementById("diskGraph");
+  if (!graph || diskHistory.length === 0) return;
+
+  // Create bars for existing history
+  while (graph.children.length < diskHistory.length) {
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    graph.appendChild(bar);
+  }
+
+  // Update bar heights
+  for (let i = 0; i < diskHistory.length; i++) {
+    const height = Math.max(2, (diskHistory[i] / 100) * 26);
+    graph.children[i].style.height = height + "px";
+  }
+}
+
+function updateDiskGraph(usage) {
+  const graph = document.getElementById("diskGraph");
+  if (!graph) return;
+
+  // Calculate how wide each bar would be if we add one more
+  const containerWidth = graph.clientWidth - 6; // Subtract padding
+  const newBarCount = diskHistory.length + 1;
+  const barWidthIfAdded = (containerWidth - (barGap * (newBarCount - 1))) / newBarCount;
+
+  // If adding a new bar would make bars less than 4px, remove oldest first
+  if (barWidthIfAdded < minBarWidth && diskHistory.length > 0) {
+    diskHistory.shift();
+  }
+
+  // Add new value
+  diskHistory.push(usage);
+  saveDiskHistory();
+
+  // Create bars if needed
+  while (graph.children.length < diskHistory.length) {
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    graph.appendChild(bar);
+  }
+
+  // Remove extra bars if needed (from the front - oldest)
+  while (graph.children.length > diskHistory.length) {
+    graph.removeChild(graph.firstChild);
+  }
+
+  // Update bar heights (max height is 100% = 26px inside the container)
+  for (let i = 0; i < diskHistory.length; i++) {
+    const height = Math.max(2, (diskHistory[i] / 100) * 26);
+    graph.children[i].style.height = height + "px";
+  }
+}
+
 async function refreshCPU(){
   try{
     const res = await fetch("/api/system", {cache:"no-store"});
@@ -541,17 +614,19 @@ async function refreshDisk(){
     const j = await res.json();
     if (j.disk) {
       if (j.disk.error) {
-        document.getElementById("diskUsed").textContent = "—";
-        document.getElementById("diskTotal").textContent = "—";
-        document.getElementById("diskFree").textContent = "—";
+        document.getElementById("diskSummary").textContent = "—";
         document.getElementById("diskPercent").textContent = "—";
         document.getElementById("diskErr").textContent = j.disk.error;
       } else {
-        document.getElementById("diskUsed").textContent = formatBytes(j.disk.used || 0);
-        document.getElementById("diskTotal").textContent = formatBytes(j.disk.total || 0);
-        document.getElementById("diskFree").textContent = formatBytes(j.disk.free || 0);
-        document.getElementById("diskPercent").textContent = (j.disk.percent || 0).toFixed(1) + "%";
+        const toGB = (bytes) => (bytes / (1024 * 1024 * 1024)).toFixed(1);
+        const total = toGB(j.disk.total || 0);
+        const used = toGB(j.disk.used || 0);
+        const free = toGB(j.disk.free || 0);
+        document.getElementById("diskSummary").textContent = total + " / " + used + " / " + free;
+        const percent = j.disk.percent || 0;
+        document.getElementById("diskPercent").textContent = percent.toFixed(1) + "%";
         document.getElementById("diskErr").textContent = "";
+        updateDiskGraph(percent);
       }
     }
     startTimer("disk");
@@ -855,6 +930,7 @@ const refreshHandlers = {
 refresh();
 renderCpuGraph(); // Render saved CPU history
 renderRamGraph(); // Render saved RAM history
+renderDiskGraph(); // Render saved Disk history
 refreshCPU();
 refreshRAM();
 refreshDisk();
@@ -1019,6 +1095,7 @@ applyModuleVisibility();
   document.getElementById('clearCacheBtn').addEventListener('click', () => {
     localStorage.removeItem('cpuHistory');
     localStorage.removeItem('ramHistory');
+    localStorage.removeItem('diskHistory');
     localStorage.removeItem('githubData');
     alert('Cache cleared!');
   });
@@ -1300,7 +1377,8 @@ setInterval(refreshIP, timers.ip.interval);
   font-family: inherit;
 }
 .card[data-module="cpu"],
-.card[data-module="ram"] {
+.card[data-module="ram"],
+.card[data-module="disk"] {
   display: flex;
   flex-direction: column;
 }
