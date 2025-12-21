@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -740,20 +741,48 @@ func main() {
 	mux.HandleFunc("/api/weather", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		resp := WeatherInfo{
-			Enabled: cfg.Weather.Enabled,
+			Enabled: true, // Always enabled, user can set location
 		}
-		if cfg.Weather.Enabled && cfg.Weather.Lat != "" && cfg.Weather.Lon != "" {
-			wd, err := openMeteoSummary(ctx, cfg.Weather.Lat, cfg.Weather.Lon)
+
+		// Check for lat/lon query parameters (from user preferences)
+		lat := r.URL.Query().Get("lat")
+		lon := r.URL.Query().Get("lon")
+
+		// Fall back to config if not provided
+		if lat == "" || lon == "" {
+			lat = cfg.Weather.Lat
+			lon = cfg.Weather.Lon
+		}
+
+		if lat != "" && lon != "" {
+			wd, err := openMeteoSummary(ctx, lat, lon)
 			if err != nil {
 				resp.Error = err.Error()
 			} else {
 				resp.Summary = wd.Summary
 				resp.Forecast = wd.Forecast
 			}
-		} else if cfg.Weather.Enabled {
-			resp.Summary = "Set DASH_LAT and DASH_LON to enable local weather."
+		} else {
+			resp.Summary = "Set your location in Preferences to enable weather."
 		}
 		writeJSON(w, resp)
+	})
+
+	// Geocoding endpoint to convert city name to coordinates
+	mux.HandleFunc("/api/geocode", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		query := r.URL.Query().Get("q")
+		if query == "" {
+			writeJSON(w, map[string]string{"error": "Missing query parameter 'q'"})
+			return
+		}
+
+		results, err := geocodeCity(ctx, query)
+		if err != nil {
+			writeJSON(w, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, results)
 	})
 
 	mux.HandleFunc("/api/github", func(w http.ResponseWriter, r *http.Request) {
@@ -1111,6 +1140,59 @@ func openMeteoSummary(ctx context.Context, lat, lon string) (WeatherData, error)
 	}
 
 	return WeatherData{Summary: summary, Forecast: forecast}, nil
+}
+
+// GeoLocation represents a geocoded location result
+type GeoLocation struct {
+	Name      string  `json:"name"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Country   string  `json:"country"`
+	Admin1    string  `json:"admin1,omitempty"` // State/region
+}
+
+func geocodeCity(ctx context.Context, query string) ([]GeoLocation, error) {
+	// Use Open-Meteo's geocoding API (free, no key required)
+	u := "https://geocoding-api.open-meteo.com/v1/search?name=" + url.QueryEscape(query) + "&count=5&language=en&format=json"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req.Header.Set("User-Agent", "lan-index/1.0")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		return nil, errors.New("geocode http status " + res.Status)
+	}
+
+	var raw struct {
+		Results []struct {
+			Name      string  `json:"name"`
+			Latitude  float64 `json:"latitude"`
+			Longitude float64 `json:"longitude"`
+			Country   string  `json:"country"`
+			Admin1    string  `json:"admin1"`
+		} `json:"results"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	if len(raw.Results) == 0 {
+		return nil, errors.New("no locations found")
+	}
+
+	var results []GeoLocation
+	for _, r := range raw.Results {
+		results = append(results, GeoLocation{
+			Name:      r.Name,
+			Latitude:  r.Latitude,
+			Longitude: r.Longitude,
+			Country:   r.Country,
+			Admin1:    r.Admin1,
+		})
+	}
+	return results, nil
 }
 
 func formatRateLimitReset(resetHeader string) string {

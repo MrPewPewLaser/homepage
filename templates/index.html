@@ -173,6 +173,27 @@
             </div>
           </div>
           <div class="pref-section">
+            <h3>Weather</h3>
+            <div class="pref-row">
+              <label>Location</label>
+              <div class="location-input">
+                <input type="text" id="pref-weather-location" placeholder="e.g., Athens, Greece">
+                <button class="btn-small" id="searchLocationBtn"><i class="fas fa-search"></i></button>
+              </div>
+            </div>
+            <div class="pref-row" id="locationResultsRow" style="display:none;">
+              <label>Select</label>
+              <div class="location-input">
+                <select id="pref-location-results"></select>
+                <button class="btn-small" id="setLocationBtn"><i class="fas fa-check"></i> Set</button>
+              </div>
+            </div>
+            <div class="pref-row" id="currentLocationRow">
+              <label>Current</label>
+              <span class="location-display" id="currentLocationDisplay">Not set</span>
+            </div>
+          </div>
+          <div class="pref-section">
             <h3>Data</h3>
             <div class="pref-row">
               <label>Clear cached data</label>
@@ -637,7 +658,17 @@ async function refreshDisk(){
 
 async function refreshWeather(){
   try{
-    const res = await fetch("/api/weather", {cache:"no-store"});
+    // Get saved location from localStorage
+    let weatherUrl = "/api/weather";
+    try {
+      const savedLoc = localStorage.getItem('weatherLocation');
+      if (savedLoc) {
+        const loc = JSON.parse(savedLoc);
+        weatherUrl += "?lat=" + loc.latitude + "&lon=" + loc.longitude;
+      }
+    } catch (e) {}
+
+    const res = await fetch(weatherUrl, {cache:"no-store"});
     const j = await res.json();
 
     document.getElementById("weather").textContent = j.summary || "—";
@@ -1106,6 +1137,96 @@ applyModuleVisibility();
     location.reload();
   });
 
+  // Weather location
+  const locationInput = document.getElementById('pref-weather-location');
+  const searchLocationBtn = document.getElementById('searchLocationBtn');
+  const locationResultsRow = document.getElementById('locationResultsRow');
+  const locationResultsSelect = document.getElementById('pref-location-results');
+  const currentLocationDisplay = document.getElementById('currentLocationDisplay');
+
+  // Load saved location
+  function loadWeatherLocation() {
+    try {
+      const saved = localStorage.getItem('weatherLocation');
+      if (saved) {
+        const loc = JSON.parse(saved);
+        currentLocationDisplay.textContent = loc.name + ', ' + loc.country + ' (' + loc.latitude.toFixed(2) + ', ' + loc.longitude.toFixed(2) + ')';
+        locationInput.value = loc.name + ', ' + loc.country;
+      } else {
+        currentLocationDisplay.textContent = 'Not set';
+      }
+    } catch (e) {
+      currentLocationDisplay.textContent = 'Not set';
+    }
+  }
+  loadWeatherLocation();
+
+  // Search location
+  searchLocationBtn.addEventListener('click', async () => {
+    const query = locationInput.value.trim();
+    if (!query) return;
+
+    searchLocationBtn.disabled = true;
+    searchLocationBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    try {
+      const res = await fetch('/api/geocode?q=' + encodeURIComponent(query));
+      const data = await res.json();
+
+      if (data.error) {
+        alert('Error: ' + data.error);
+        return;
+      }
+
+      if (data.length === 0) {
+        alert('No locations found for "' + query + '"');
+        return;
+      }
+
+      // Populate results dropdown
+      locationResultsSelect.innerHTML = '';
+      data.forEach((loc, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        let label = loc.name;
+        if (loc.admin1) label += ', ' + loc.admin1;
+        label += ', ' + loc.country;
+        option.textContent = label;
+        option.dataset.location = JSON.stringify(loc);
+        locationResultsSelect.appendChild(option);
+      });
+
+      locationResultsRow.style.display = 'flex';
+    } catch (e) {
+      alert('Error searching location: ' + e.message);
+    } finally {
+      searchLocationBtn.disabled = false;
+      searchLocationBtn.innerHTML = '<i class="fas fa-search"></i>';
+    }
+  });
+
+  // Enter key to search
+  locationInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchLocationBtn.click();
+    }
+  });
+
+  // Set location button
+  const setLocationBtn = document.getElementById('setLocationBtn');
+  setLocationBtn.addEventListener('click', () => {
+    const selected = locationResultsSelect.options[locationResultsSelect.selectedIndex];
+    if (selected && selected.dataset.location) {
+      const loc = JSON.parse(selected.dataset.location);
+      localStorage.setItem('weatherLocation', JSON.stringify(loc));
+      currentLocationDisplay.textContent = loc.name + ', ' + loc.country + ' (' + loc.latitude.toFixed(2) + ', ' + loc.longitude.toFixed(2) + ')';
+      locationResultsRow.style.display = 'none';
+      // Refresh weather with new location
+      refreshWeather();
+    }
+  });
+
   // Render module list
   function renderModuleList() {
     const list = document.getElementById('moduleList');
@@ -1561,6 +1682,31 @@ setInterval(refreshIP, timers.ip.interval);
 .btn-small:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+.location-input {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.location-input input[type="text"],
+.location-input select {
+  flex: 1;
+  min-width: 150px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--txt);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.location-input input[type="text"]:focus,
+.location-input select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.location-display {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 /* Module List */
