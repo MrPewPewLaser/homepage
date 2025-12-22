@@ -2907,10 +2907,22 @@ func getCPUDetails(ctx context.Context) CPUDetailsInfo {
 		info.Name = "Unknown CPU"
 	}
 
-	// Get processor info for cores
-	procInfo := cpuid.GetProcessorInfo(maxFunc, maxExtFunc, false, "")
-	info.PhysicalCores = int(procInfo.CoreCount)
-	info.VirtualCores = int(procInfo.CoreCount * procInfo.ThreadPerCore)
+	// Get physical and logical core counts using gopsutil
+	physicalCores, err := cpu.CountsWithContext(ctx, false) // false = physical cores only
+	if err != nil {
+		// Fallback to cpuid if gopsutil fails
+		procInfo := cpuid.GetProcessorInfo(maxFunc, maxExtFunc, false, "")
+		// If CoreCount includes hyperthreading, divide by threads per core
+		if procInfo.ThreadPerCore > 0 {
+			info.PhysicalCores = int(procInfo.CoreCount) / int(procInfo.ThreadPerCore)
+		} else {
+			info.PhysicalCores = int(procInfo.CoreCount)
+		}
+	} else {
+		info.PhysicalCores = physicalCores
+	}
+	// Use runtime.NumCPU() for total threads (includes hyperthreading)
+	info.VirtualCores = runtime.NumCPU()
 
 	// Get CPU frequencies using gopsutil
 	freqs, err := cpu.InfoWithContext(ctx)

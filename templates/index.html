@@ -110,8 +110,8 @@
       </div>
 
       <div class="card span-4" data-module="cpuid" draggable="true">
-        <h3><i class="fas fa-microchip"></i> CPU Info<div class="header-icons"><div class="timer-circle" id="cpuidTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
-        <div class="kv"><div class="k">Name</div><div class="v mono" id="cpuidName">—</div></div>
+        <h3><i class="fas fa-microchip"></i> CPU Info<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div class="v mono" id="cpuidName" style="margin-bottom: 8px;">—</div>
         <div class="kv"><div class="k">Cores</div><div class="v mono" id="cpuidCores">—</div></div>
         <div class="kv"><div class="k">Speed</div><div class="v mono" id="cpuidSpeed">—</div></div>
         <div id="cpuidCache"></div>
@@ -524,7 +524,6 @@ function fmtUptime(sec){
 // Timer management
 const timers = {
   cpu: {interval: 5000, lastUpdate: 0, timer: null}, // 5 seconds
-  cpuid: {interval: 300000, lastUpdate: 0, timer: null}, // 5 minutes
   ram: {interval: 5000, lastUpdate: 0, timer: null}, // 5 seconds
   disk: {interval: 15000, lastUpdate: 0, timer: null}, // 15 seconds
   github: {interval: 900000, lastUpdate: 0, timer: null}, // 15 minutes
@@ -995,13 +994,13 @@ async function refreshCPUInfo(){
       document.getElementById("cpuidName").textContent = "—";
       document.getElementById("cpuidCores").textContent = "—";
       document.getElementById("cpuidSpeed").textContent = "—";
-      document.getElementById("cpuidCache").innerHTML = "";
+      document.getElementById("cpuidCache").innerHTML = "—";
       document.getElementById("cpuidErr").textContent = j.error;
     } else {
       // CPU Name
       document.getElementById("cpuidName").textContent = j.name || "—";
       
-      // Cores: Physical / Virtual
+      // Cores: Physical / Threads
       const coresText = (j.physicalCores || 0) + " / " + (j.virtualCores || 0);
       document.getElementById("cpuidCores").textContent = coresText;
       
@@ -1024,25 +1023,64 @@ async function refreshCPUInfo(){
       }
       document.getElementById("cpuidSpeed").textContent = speedText;
       
-      // Cache information (L1, L2, L3)
+      // Cache information - L1 with Instruction/Data, L2 and L3 each on their own line
       const cacheEl = document.getElementById("cpuidCache");
       if (j.cache && j.cache.length > 0) {
-        let cacheHTML = "";
+        // Group caches by level
+        const cacheByLevel = {};
         j.cache.forEach(cache => {
-          const sizeText = cache.sizeKB >= 1024 
-            ? (cache.sizeKB / 1024).toFixed(1) + " MB"
-            : cache.sizeKB + " KB";
-          const speedText = cache.speedMHz ? " @ " + cache.speedMHz.toFixed(0) + " MHz" : "";
-          cacheHTML += `<div class="kv"><div class="k">L${cache.level} ${cache.type}</div><div class="v mono">${sizeText}${speedText}</div></div>`;
+          if (!cacheByLevel[cache.level]) {
+            cacheByLevel[cache.level] = [];
+          }
+          cacheByLevel[cache.level].push(cache);
         });
-        cacheEl.innerHTML = cacheHTML;
+        
+        let cacheHTML = "";
+        
+        // L1: Show Instruction and Data separately in value
+        if (cacheByLevel[1] && cacheByLevel[1].length > 0) {
+          const l1Caches = cacheByLevel[1];
+          const l1Parts = [];
+          l1Caches.forEach(cache => {
+            const sizeText = cache.sizeKB >= 1024 
+              ? (cache.sizeKB / 1024).toFixed(1) + "MB"
+              : cache.sizeKB + "KB";
+            if (cache.type === "Instruction") {
+              l1Parts.push(`Instruction: ${sizeText}`);
+            } else if (cache.type === "Data") {
+              l1Parts.push(`Data: ${sizeText}`);
+            } else {
+              l1Parts.push(`${cache.type}: ${sizeText}`);
+            }
+          });
+          cacheHTML += `<div class="kv"><div class="k">L1</div><div class="v mono">${l1Parts.join(", ")}</div></div>`;
+        }
+        
+        // L2: On its own line
+        if (cacheByLevel[2] && cacheByLevel[2].length > 0) {
+          const l2Cache = cacheByLevel[2][0];
+          const sizeText = l2Cache.sizeKB >= 1024 
+            ? (l2Cache.sizeKB / 1024).toFixed(1) + "MB"
+            : l2Cache.sizeKB + "KB";
+          cacheHTML += `<div class="kv"><div class="k">L2</div><div class="v mono">${sizeText}</div></div>`;
+        }
+        
+        // L3: On its own line
+        if (cacheByLevel[3] && cacheByLevel[3].length > 0) {
+          const l3Cache = cacheByLevel[3][0];
+          const sizeText = l3Cache.sizeKB >= 1024 
+            ? (l3Cache.sizeKB / 1024).toFixed(1) + "MB"
+            : l3Cache.sizeKB + "KB";
+          cacheHTML += `<div class="kv"><div class="k">L3</div><div class="v mono">${sizeText}</div></div>`;
+        }
+        
+        cacheEl.innerHTML = cacheHTML || "—";
       } else {
-        cacheEl.innerHTML = "";
+        cacheEl.innerHTML = "—";
       }
       
       document.getElementById("cpuidErr").textContent = "";
     }
-    startTimer("cpuid");
   } catch(err){
     console.error("Error refreshing CPU Info:", err);
     document.getElementById("cpuidErr").textContent = "Failed to fetch CPU info";
@@ -1392,7 +1430,6 @@ document.getElementById("refreshBtn").onclick = refresh;
 // Setup double-click handlers for timers
 const refreshHandlers = {
   cpu: refreshCPU,
-  cpuid: refreshCPUInfo,
   ram: refreshRAM,
   disk: refreshDisk,
   github: refreshGitHub,
@@ -1432,7 +1469,7 @@ const moduleConfig = {
   network: { name: 'Network', icon: 'fa-network-wired', desc: 'LAN and public IP addresses', hasTimer: true, timerKey: 'ip', defaultInterval: 7200, enabled: true },
   weather: { name: 'Weather', icon: 'fa-cloud-sun', desc: 'Current weather and forecast', hasTimer: true, timerKey: 'weather', defaultInterval: 1800, enabled: true },
   cpu: { name: 'CPU', icon: 'fa-microchip', desc: 'CPU usage monitoring', hasTimer: true, timerKey: 'cpu', defaultInterval: 5, enabled: true },
-  cpuid: { name: 'CPU Info', icon: 'fa-microchip', desc: 'CPU specifications and cache', hasTimer: true, timerKey: 'cpuid', defaultInterval: 300, enabled: true },
+  cpuid: { name: 'CPU Info', icon: 'fa-microchip', desc: 'CPU specifications and cache', hasTimer: false, enabled: true },
   ram: { name: 'RAM', icon: 'fa-memory', desc: 'Memory usage monitoring', hasTimer: true, timerKey: 'ram', defaultInterval: 5, enabled: true },
   disk: { name: 'Disk', icon: 'fa-hdd', desc: 'Disk space monitoring', hasTimer: true, timerKey: 'disk', defaultInterval: 15, enabled: true },
   links: { name: 'Quick Links', icon: 'fa-link', desc: 'Custom shortcut links', hasTimer: false, enabled: true },
@@ -1527,9 +1564,9 @@ function initGraphs() {
 }
 setTimeout(initGraphs, 0);
 refreshCPU();
-refreshCPUInfo();
 refreshRAM();
 refreshDisk();
+refreshCPUInfo(); // Load once, no refresh needed
 refreshGitHub();
 refreshWeather();
 refreshIP();
@@ -3032,7 +3069,6 @@ applyModuleVisibility();
 // Set up intervals - each module refreshes independently
 setInterval(refresh, 30000); // General refresh every 30s (server info only)
 setInterval(refreshCPU, timers.cpu.interval);
-setInterval(refreshCPUInfo, timers.cpuid.interval);
 setInterval(refreshRAM, timers.ram.interval);
 setInterval(refreshDisk, timers.disk.interval);
 setInterval(refreshGitHub, timers.github.interval);
