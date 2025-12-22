@@ -15,7 +15,7 @@
 - [x] Add bar graph for ram usage
 - [x] Add popup menu to edit the refresh times for each enabled module, we can disable or enable the module, and change the refresh time
 - [ ] Add Docker containers status
-- [ ] Add service health checks
+- [x] Add service health checks
 - [ ] Add recent logs viewer
 - [x] Add uptime monitoring
 
@@ -42,8 +42,6 @@
 - [x] add icons for weather conditions
 - [ ] add weather alerts
 - [ ] add weather historical data
-- [ ] Add hourly forecast
-- [ ] Add weather alerts
 - [ ] Add multiple location support
 
 ## Search Improvements
@@ -60,25 +58,20 @@
 - [x] Add favicon caching
 
 ## Monitoring & Alerts
-- [ ] Add service status monitoring
+- [x] Add service status monitoring
 - [ ] Add email/webhook notifications for downtime
-- [ ] Add health check endpoints
+- [x] Add health check endpoints
 - [ ] Add alert history
 
 ## Data Persistence
-- [ ] Add settings storage (localStorage or database)
-- [ ] Add user preferences saving
+- [x] Add settings storage (localStorage or database)
+- [x] Add user preferences saving
 - [ ] Add configuration export/import
 
 ## Additional API Endpoints
-- [ ] Add /api/ping for network testing
-- [ ] Add /api/wol for wake-on-LAN
-- [ ] Add /api/checks for service monitoring
-- [ ] Add /api/metrics for system stats
+- [x] Add api to monitor services
 
 ## Customization
-- [ ] Add custom CSS injection
-- [ ] Add module visibility toggles
 - [ ] Add grid layout configuration
 - [ ] Add color scheme customization
 

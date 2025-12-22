@@ -987,6 +987,73 @@ func main() {
 		writeJSON(w, map[string]string{"favicon": dataURL})
 	})
 
+	// Service monitoring endpoint
+	mux.HandleFunc("/api/monitor", func(w http.ResponseWriter, r *http.Request) {
+		monType := r.URL.Query().Get("type")
+
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		var result struct {
+			Success bool   `json:"success"`
+			Latency int64  `json:"latency,omitempty"`
+			Error   string `json:"error,omitempty"`
+		}
+
+		switch monType {
+		case "http":
+			targetURL := r.URL.Query().Get("url")
+			if targetURL == "" {
+				result.Error = "Missing 'url' parameter"
+				writeJSON(w, result)
+				return
+			}
+			latency, err := checkHTTP(ctx, targetURL)
+			if err != nil {
+				result.Error = err.Error()
+			} else {
+				result.Success = true
+				result.Latency = latency
+			}
+
+		case "port":
+			host := r.URL.Query().Get("host")
+			port := r.URL.Query().Get("port")
+			if host == "" || port == "" {
+				result.Error = "Missing 'host' or 'port' parameter"
+				writeJSON(w, result)
+				return
+			}
+			latency, err := checkPort(ctx, host, port)
+			if err != nil {
+				result.Error = err.Error()
+			} else {
+				result.Success = true
+				result.Latency = latency
+			}
+
+		case "ping":
+			host := r.URL.Query().Get("host")
+			if host == "" {
+				result.Error = "Missing 'host' parameter"
+				writeJSON(w, result)
+				return
+			}
+			latency, err := checkPing(ctx, host)
+			if err != nil {
+				result.Error = err.Error()
+			} else {
+				result.Success = true
+				result.Latency = latency
+			}
+
+		default:
+			result.Error = "Invalid monitor type"
+		}
+
+		writeJSON(w, result)
+	})
+
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -1508,6 +1575,88 @@ func extractFaviconFromHTML(html, origin string) string {
 		}
 	}
 	return ""
+}
+
+// checkHTTP performs an HTTP check and returns latency in ms
+func checkHTTP(ctx context.Context, targetURL string) (int64, error) {
+	// Skip TLS verification for LAN sites
+	tlsConfig := &tls.Config{InsecureSkipVerify: true}
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	client := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return errors.New("too many redirects")
+			}
+			return nil
+		},
+	}
+
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; lan-index-monitor/1.0)")
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer res.Body.Close()
+
+	latency := time.Since(start).Milliseconds()
+
+	if res.StatusCode >= 400 {
+		return latency, errors.New("HTTP " + res.Status)
+	}
+
+	return latency, nil
+}
+
+// checkPort performs a TCP port check and returns latency in ms
+func checkPort(ctx context.Context, host, port string) (int64, error) {
+	address := net.JoinHostPort(host, port)
+
+	start := time.Now()
+
+	dialer := &net.Dialer{
+		Timeout: 10 * time.Second,
+	}
+
+	conn, err := dialer.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	latency := time.Since(start).Milliseconds()
+	return latency, nil
+}
+
+// checkPing performs an ICMP ping (or TCP fallback) and returns latency in ms
+func checkPing(ctx context.Context, host string) (int64, error) {
+	// Try TCP connect to common ports as a ping alternative
+	// (ICMP ping requires root privileges)
+	ports := []string{"80", "443", "22", "21"}
+
+	for _, port := range ports {
+		latency, err := checkPort(ctx, host, port)
+		if err == nil {
+			return latency, nil
+		}
+	}
+
+	// If all ports fail, try a DNS lookup as last resort
+	start := time.Now()
+	_, err := net.LookupHost(host)
+	if err != nil {
+		return 0, errors.New("host unreachable")
+	}
+	latency := time.Since(start).Milliseconds()
+
+	return latency, nil
 }
 
 func downloadFavicon(ctx context.Context, client *http.Client, faviconURL string) ([]byte, string, error) {

@@ -116,11 +116,11 @@
         </div>
       </div>
 
-      <div class="card span-6" data-module="utilities" draggable="true">
-        <h3><i class="fas fa-tools"></i> Utilities<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
-        <div class="kv"><div class="k">Ping</div><div class="v"><span class="small">Add /api/ping later</span></div></div>
-        <div class="kv"><div class="k">Wake-on-LAN</div><div class="v"><span class="small">Add /api/wol later</span></div></div>
-        <div class="kv"><div class="k">Service checks</div><div class="v"><span class="small">Add /api/checks later</span></div></div>
+      <div class="card span-6" data-module="monitoring" draggable="true">
+        <h3><i class="fas fa-heartbeat"></i> Monitoring<div class="header-icons"><div class="timer-circle" id="monitoringTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div id="monitoringContainer">
+          <div class="small" style="color:var(--muted);">Add services in Preferences → Monitoring</div>
+        </div>
       </div>
 
     </div>
@@ -154,6 +154,7 @@
         <button class="modal-tab active" data-tab="general"><i class="fas fa-sliders-h"></i> General</button>
         <button class="modal-tab" data-tab="modules"><i class="fas fa-th-large"></i> Modules</button>
         <button class="modal-tab" data-tab="quicklinks"><i class="fas fa-link"></i> Quicklinks</button>
+        <button class="modal-tab" data-tab="monitoring"><i class="fas fa-heartbeat"></i> Monitoring</button>
         <button class="modal-tab" data-tab="about"><i class="fas fa-info-circle"></i> About</button>
       </div>
       <div class="modal-content">
@@ -281,6 +282,55 @@
             </div>
           </div>
         </div>
+        <div class="tab-content" id="tab-monitoring">
+          <div class="pref-section">
+            <h3>Refresh Interval</h3>
+            <div class="pref-row">
+              <label>Check every</label>
+              <div class="location-input">
+                <input type="number" id="monitor-interval" value="60" min="5" max="3600" style="width:80px;">
+                <span class="small">seconds</span>
+              </div>
+            </div>
+          </div>
+          <div class="pref-section">
+            <h3>Services <button class="btn-small" id="addMonitorBtn"><i class="fas fa-plus"></i> Add</button></h3>
+            <div class="module-list" id="monitorsList"></div>
+          </div>
+          <div class="pref-section">
+            <h3>Add / Edit Service</h3>
+            <div id="monitorForm" style="display:none;">
+              <div class="pref-row">
+                <label>Name</label>
+                <input type="text" id="mon-name" placeholder="e.g., Web Server">
+              </div>
+              <div class="pref-row">
+                <label>Type</label>
+                <select id="mon-type">
+                  <option value="http">HTTP Check</option>
+                  <option value="port">Port Check</option>
+                  <option value="ping">Ping</option>
+                </select>
+              </div>
+              <div class="pref-row" id="mon-url-row">
+                <label>URL</label>
+                <input type="text" id="mon-url" placeholder="e.g., https://example.com">
+              </div>
+              <div class="pref-row" id="mon-host-row" style="display:none;">
+                <label>Host</label>
+                <input type="text" id="mon-host" placeholder="e.g., 192.168.1.1">
+              </div>
+              <div class="pref-row" id="mon-port-row" style="display:none;">
+                <label>Port</label>
+                <input type="number" id="mon-port" placeholder="e.g., 443" min="1" max="65535">
+              </div>
+              <div class="pref-row" style="justify-content:flex-end; gap:10px;">
+                <button class="btn-small" id="mon-cancel">Cancel</button>
+                <button class="btn-small" id="mon-save" style="background:var(--accent); color:var(--bg);"><i class="fas fa-check"></i> Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="tab-content" id="tab-about">
           <div class="pref-section about-section">
             <div class="about-logo"><i class="fas fa-home fa-3x"></i></div>
@@ -400,6 +450,7 @@ const timers = {
   github: {interval: 900000, lastUpdate: 0, timer: null}, // 15 minutes
   weather: {interval: 1800000, lastUpdate: 0, timer: null}, // 30 minutes
   ip: {interval: 7200000, lastUpdate: 0, timer: null}, // 2 hours
+  monitoring: {interval: 60000, lastUpdate: 0, timer: null}, // 60 seconds
   general: {interval: 30000, lastUpdate: 0, timer: null} // 30 seconds for other data
 };
 
@@ -1161,10 +1212,11 @@ const refreshHandlers = {
   disk: refreshDisk,
   github: refreshGitHub,
   weather: refreshWeather,
-  ip: refreshIP
+  ip: refreshIP,
+  monitoring: function() { if (window.refreshMonitoring) window.refreshMonitoring(); }
 };
 
-["cpu", "ram", "disk", "github", "weather", "ip"].forEach(module => {
+["cpu", "ram", "disk", "github", "weather", "ip", "monitoring"].forEach(module => {
   const timerEl = document.getElementById(module + "Timer");
   if (timerEl) {
     let lastClick = 0;
@@ -1197,7 +1249,7 @@ const moduleConfig = {
   ram: { name: 'RAM', icon: 'fa-memory', desc: 'Memory usage monitoring', hasTimer: true, timerKey: 'ram', defaultInterval: 5, enabled: true },
   disk: { name: 'Disk', icon: 'fa-hdd', desc: 'Disk space monitoring', hasTimer: true, timerKey: 'disk', defaultInterval: 15, enabled: true },
   links: { name: 'Quick Links', icon: 'fa-link', desc: 'Custom shortcut links', hasTimer: false, enabled: true },
-  utilities: { name: 'Utilities', icon: 'fa-tools', desc: 'System utilities', hasTimer: false, enabled: true }
+  monitoring: { name: 'Monitoring', icon: 'fa-heartbeat', desc: 'Service health monitoring', hasTimer: true, timerKey: 'monitoring', defaultInterval: 60, enabled: true }
 };
 
 // GitHub modules configuration (stored separately, can have multiple)
@@ -2113,6 +2165,336 @@ applyModuleVisibility();
   renderQuicklinks();
 })();
 
+// Monitoring management
+(function() {
+  // Default monitors
+  const defaultMonitors = [];
+
+  // Load monitors from localStorage
+  let monitors = [];
+  try {
+    const saved = localStorage.getItem('monitors');
+    if (saved) {
+      monitors = JSON.parse(saved);
+    } else {
+      monitors = defaultMonitors;
+    }
+  } catch (e) {
+    monitors = defaultMonitors;
+  }
+
+  // Load interval preference
+  try {
+    const savedInterval = localStorage.getItem('monitorInterval');
+    if (savedInterval) {
+      timers.monitoring.interval = parseInt(savedInterval) * 1000;
+    }
+  } catch (e) {}
+
+  function saveMonitors() {
+    try {
+      localStorage.setItem('monitors', JSON.stringify(monitors));
+    } catch (e) {}
+  }
+
+  function saveMonitorInterval(seconds) {
+    try {
+      localStorage.setItem('monitorInterval', seconds.toString());
+      timers.monitoring.interval = seconds * 1000;
+    } catch (e) {}
+  }
+
+  // Render monitors in the card
+  window.renderMonitors = function() {
+    const container = document.getElementById('monitoringContainer');
+    if (!container) return;
+
+    if (monitors.length === 0) {
+      container.innerHTML = '<div class="small" style="color:var(--muted);">Add services in Preferences → Monitoring</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    monitors.forEach((mon, index) => {
+      const row = document.createElement('div');
+      row.className = 'kv monitor-row';
+      row.dataset.index = index;
+
+      const k = document.createElement('div');
+      k.className = 'k';
+      k.innerHTML = '<span class="monitor-status" id="mon-status-' + index + '"><i class="fas fa-circle" style="color:var(--muted);"></i></span> ' + mon.name;
+
+      const v = document.createElement('div');
+      v.className = 'v mono';
+      v.id = 'mon-result-' + index;
+      v.textContent = '—';
+
+      row.appendChild(k);
+      row.appendChild(v);
+      container.appendChild(row);
+    });
+  };
+
+  // Check a single monitor
+  async function checkMonitor(mon, index) {
+    const statusEl = document.getElementById('mon-status-' + index);
+    const resultEl = document.getElementById('mon-result-' + index);
+
+    if (!statusEl || !resultEl) return;
+
+    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:var(--accent);"></i>';
+
+    try {
+      let url = '/api/monitor?type=' + mon.type;
+      if (mon.type === 'http') {
+        url += '&url=' + encodeURIComponent(mon.url);
+      } else if (mon.type === 'port') {
+        url += '&host=' + encodeURIComponent(mon.host) + '&port=' + mon.port;
+      } else if (mon.type === 'ping') {
+        url += '&host=' + encodeURIComponent(mon.host);
+      }
+
+      const res = await fetch(url, {cache: 'no-store'});
+      const data = await res.json();
+
+      if (data.success) {
+        statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#a3be8c;"></i>';
+        resultEl.textContent = data.latency ? data.latency + 'ms' : 'OK';
+        resultEl.style.color = '';
+      } else {
+        statusEl.innerHTML = '<i class="fas fa-times-circle" style="color:#bf616a;"></i>';
+        resultEl.textContent = data.error || 'Failed';
+        resultEl.style.color = '#bf616a';
+      }
+    } catch (e) {
+      statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ebcb8b;"></i>';
+      resultEl.textContent = 'Error';
+      resultEl.style.color = '#ebcb8b';
+    }
+  }
+
+  // Refresh all monitors
+  window.refreshMonitoring = async function() {
+    for (let i = 0; i < monitors.length; i++) {
+      await checkMonitor(monitors[i], i);
+    }
+    startTimer('monitoring');
+  };
+
+  // Render monitor list in preferences
+  window.renderMonitorsList = function() {
+    const list = document.getElementById('monitorsList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (monitors.length === 0) {
+      list.innerHTML = '<div class="small" style="color:var(--muted);padding:10px;">No services yet. Click "Add" to create one.</div>';
+      return;
+    }
+
+    monitors.forEach((mon, index) => {
+      const typeLabels = { http: 'HTTP', port: 'Port', ping: 'Ping' };
+      const typeIcons = { http: 'fa-globe', port: 'fa-plug', ping: 'fa-satellite-dish' };
+
+      let desc = '';
+      if (mon.type === 'http') desc = mon.url;
+      else if (mon.type === 'port') desc = mon.host + ':' + mon.port;
+      else if (mon.type === 'ping') desc = mon.host;
+
+      const item = document.createElement('div');
+      item.className = 'module-item';
+      item.innerHTML = `
+        <div class="module-icon"><i class="fas ${typeIcons[mon.type] || 'fa-heartbeat'}"></i></div>
+        <div class="module-info">
+          <div class="module-name">${mon.name}</div>
+          <div class="module-desc">${typeLabels[mon.type] || mon.type} • ${desc}</div>
+        </div>
+        <div class="module-controls">
+          <button class="btn-small edit-mon-btn" data-index="${index}"><i class="fas fa-edit"></i></button>
+          <button class="btn-small delete-mon-btn" data-index="${index}"><i class="fas fa-trash"></i></button>
+        </div>
+      `;
+      list.appendChild(item);
+
+      // Edit button
+      item.querySelector('.edit-mon-btn').addEventListener('click', () => {
+        editMonitor(index);
+      });
+
+      // Delete button
+      item.querySelector('.delete-mon-btn').addEventListener('click', () => {
+        if (confirm('Delete monitor "' + mon.name + '"?')) {
+          monitors.splice(index, 1);
+          saveMonitors();
+          renderMonitorsList();
+          renderMonitors();
+        }
+      });
+    });
+  };
+
+  // Form elements
+  const form = document.getElementById('monitorForm');
+  const nameInput = document.getElementById('mon-name');
+  const typeSelect = document.getElementById('mon-type');
+  const urlInput = document.getElementById('mon-url');
+  const hostInput = document.getElementById('mon-host');
+  const portInput = document.getElementById('mon-port');
+  const urlRow = document.getElementById('mon-url-row');
+  const hostRow = document.getElementById('mon-host-row');
+  const portRow = document.getElementById('mon-port-row');
+  const cancelBtn = document.getElementById('mon-cancel');
+  const saveBtn = document.getElementById('mon-save');
+  const addBtn = document.getElementById('addMonitorBtn');
+  const intervalInput = document.getElementById('monitor-interval');
+
+  let editingIndex = -1;
+
+  // Update form fields based on type
+  function updateFormFields() {
+    const type = typeSelect.value;
+    if (type === 'http') {
+      urlRow.style.display = 'flex';
+      hostRow.style.display = 'none';
+      portRow.style.display = 'none';
+    } else if (type === 'port') {
+      urlRow.style.display = 'none';
+      hostRow.style.display = 'flex';
+      portRow.style.display = 'flex';
+    } else if (type === 'ping') {
+      urlRow.style.display = 'none';
+      hostRow.style.display = 'flex';
+      portRow.style.display = 'none';
+    }
+  }
+
+  typeSelect.addEventListener('change', updateFormFields);
+
+  function showForm() {
+    form.style.display = 'block';
+    updateFormFields();
+  }
+
+  function hideForm() {
+    form.style.display = 'none';
+    nameInput.value = '';
+    typeSelect.value = 'http';
+    urlInput.value = '';
+    hostInput.value = '';
+    portInput.value = '';
+    editingIndex = -1;
+    updateFormFields();
+  }
+
+  function editMonitor(index) {
+    editingIndex = index;
+    const mon = monitors[index];
+    nameInput.value = mon.name;
+    typeSelect.value = mon.type;
+    urlInput.value = mon.url || '';
+    hostInput.value = mon.host || '';
+    portInput.value = mon.port || '';
+    showForm();
+  }
+
+  addBtn.addEventListener('click', () => {
+    editingIndex = -1;
+    nameInput.value = '';
+    typeSelect.value = 'http';
+    urlInput.value = '';
+    hostInput.value = '';
+    portInput.value = '';
+    showForm();
+  });
+
+  cancelBtn.addEventListener('click', hideForm);
+
+  saveBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    const type = typeSelect.value;
+
+    if (!name) {
+      alert('Please enter a name');
+      return;
+    }
+
+    let mon = { id: 'mon-' + Date.now(), name: name, type: type };
+
+    if (type === 'http') {
+      const url = urlInput.value.trim();
+      if (!url) {
+        alert('Please enter a URL');
+        return;
+      }
+      mon.url = url;
+    } else if (type === 'port') {
+      const host = hostInput.value.trim();
+      const port = parseInt(portInput.value);
+      if (!host) {
+        alert('Please enter a host');
+        return;
+      }
+      if (!port || port < 1 || port > 65535) {
+        alert('Please enter a valid port (1-65535)');
+        return;
+      }
+      mon.host = host;
+      mon.port = port;
+    } else if (type === 'ping') {
+      const host = hostInput.value.trim();
+      if (!host) {
+        alert('Please enter a host');
+        return;
+      }
+      mon.host = host;
+    }
+
+    if (editingIndex >= 0) {
+      mon.id = monitors[editingIndex].id;
+      monitors[editingIndex] = mon;
+    } else {
+      monitors.push(mon);
+    }
+
+    saveMonitors();
+    renderMonitorsList();
+    renderMonitors();
+    refreshMonitoring();
+    hideForm();
+  });
+
+  // Interval input
+  intervalInput.value = timers.monitoring.interval / 1000;
+  intervalInput.addEventListener('change', () => {
+    const val = Math.max(5, Math.min(3600, parseInt(intervalInput.value) || 60));
+    intervalInput.value = val;
+    saveMonitorInterval(val);
+  });
+
+  // Initialize on modal open
+  const prefsModal = document.getElementById('prefsModal');
+  const observer = new MutationObserver(() => {
+    if (prefsModal.classList.contains('active')) {
+      renderMonitorsList();
+      intervalInput.value = timers.monitoring.interval / 1000;
+    }
+  });
+  observer.observe(prefsModal, { attributes: true, attributeFilter: ['class'] });
+
+// Initial render
+  renderMonitors();
+
+  // Initial check after a short delay
+  setTimeout(function() {
+    refreshMonitoring();
+  }, 2000);
+
+  // Set up monitoring interval
+  setInterval(function() {
+    refreshMonitoring();
+  }, timers.monitoring.interval);
+})();
+
 // Set up intervals - each module refreshes independently
 setInterval(refresh, 30000); // General refresh every 30s (server info only)
 setInterval(refreshCPU, timers.cpu.interval);
@@ -2121,6 +2503,7 @@ setInterval(refreshDisk, timers.disk.interval);
 setInterval(refreshGitHub, timers.github.interval);
 setInterval(refreshWeather, timers.weather.interval);
 setInterval(refreshIP, timers.ip.interval);
+// Note: monitoring interval is set up inside its own module
 
 // Drag and drop module ordering
 (function() {
