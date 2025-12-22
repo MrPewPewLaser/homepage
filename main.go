@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
@@ -16,10 +17,12 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
 	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -1070,6 +1073,39 @@ func main() {
 		writeJSON(w, result)
 	})
 
+	// SNMP query endpoint
+	mux.HandleFunc("/api/snmp", func(w http.ResponseWriter, r *http.Request) {
+		host := r.URL.Query().Get("host")
+		port := r.URL.Query().Get("port")
+		community := r.URL.Query().Get("community")
+		oid := r.URL.Query().Get("oid")
+
+		if host == "" || port == "" || community == "" || oid == "" {
+			writeJSON(w, map[string]any{
+				"success": false,
+				"error":   "Missing required parameters: host, port, community, oid",
+			})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		result, err := querySNMP(ctx, host, port, community, oid)
+		if err != nil {
+			writeJSON(w, map[string]any{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		writeJSON(w, map[string]any{
+			"success": true,
+			"value":   result,
+		})
+	})
+
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -1724,6 +1760,60 @@ func checkPing(ctx context.Context, host string) (int64, error) {
 	latency := time.Since(start).Milliseconds()
 
 	return latency, nil
+}
+
+func querySNMP(ctx context.Context, host, port, community, oid string) (string, error) {
+	// Create SNMP client
+	snmp := &gosnmp.GoSNMP{
+		Target:    host,
+		Port:      parsePort(port),
+		Community: community,
+		Version:   gosnmp.Version2c,
+		Timeout:   time.Duration(5) * time.Second,
+		Retries:   1,
+	}
+
+	// Connect
+	err := snmp.Connect()
+	if err != nil {
+		return "", errors.New("SNMP connect failed: " + err.Error())
+	}
+	defer snmp.Conn.Close()
+
+	// Perform GET request
+	result, err := snmp.Get([]string{oid})
+	if err != nil {
+		return "", errors.New("SNMP GET failed: " + err.Error())
+	}
+
+	if len(result.Variables) == 0 {
+		return "", errors.New("no SNMP variables returned")
+	}
+
+	variable := result.Variables[0]
+	if variable.Type == gosnmp.NoSuchObject || variable.Type == gosnmp.NoSuchInstance {
+		return "", errors.New("OID not found")
+	}
+
+	// Format the value based on type
+	switch variable.Type {
+	case gosnmp.OctetString:
+		return string(variable.Value.([]byte)), nil
+	case gosnmp.Integer, gosnmp.Counter32, gosnmp.Counter64, gosnmp.Gauge32, gosnmp.TimeTicks, gosnmp.Uinteger32:
+		return fmt.Sprintf("%v", variable.Value), nil
+	case gosnmp.IPAddress:
+		return variable.Value.(string), nil
+	default:
+		return fmt.Sprintf("%v", variable.Value), nil
+	}
+}
+
+func parsePort(portStr string) uint16 {
+	port := 161 // default SNMP port
+	if p, err := strconv.Atoi(portStr); err == nil && p > 0 && p < 65536 {
+		port = p
+	}
+	return uint16(port)
 }
 
 func downloadFavicon(ctx context.Context, client *http.Client, faviconURL string) ([]byte, string, error) {

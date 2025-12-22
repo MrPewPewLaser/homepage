@@ -123,6 +123,13 @@
         </div>
       </div>
 
+      <div class="card span-6" data-module="snmp" draggable="true">
+        <h3><i class="fas fa-network-wired"></i> SNMP<div class="header-icons"><div class="timer-circle" id="snmpTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div id="snmpContainer">
+          <div class="small" style="color:var(--muted);">Add queries in Preferences → SNMP</div>
+        </div>
+      </div>
+
     </div>
     <!-- GitHub modules are dynamically rendered as siblings of grid cards -->
     <div id="githubModulesContainer" class="grid" style="margin-top: 12px;"></div>
@@ -155,6 +162,7 @@
         <button class="modal-tab" data-tab="modules"><i class="fas fa-th-large"></i> Modules</button>
         <button class="modal-tab" data-tab="quicklinks"><i class="fas fa-link"></i> Quicklinks</button>
         <button class="modal-tab" data-tab="monitoring"><i class="fas fa-heartbeat"></i> Monitoring</button>
+        <button class="modal-tab" data-tab="snmp"><i class="fas fa-network-wired"></i> SNMP</button>
         <button class="modal-tab" data-tab="about"><i class="fas fa-info-circle"></i> About</button>
       </div>
       <div class="modal-content">
@@ -345,6 +353,54 @@
             </div>
           </div>
         </div>
+        <div class="tab-content" id="tab-snmp">
+          <div class="pref-section">
+            <h3>Refresh Interval</h3>
+            <div class="pref-row">
+              <label>Check every</label>
+              <div class="location-input">
+                <input type="number" id="snmp-interval" value="60" min="5" max="3600" style="width:80px;">
+                <span class="small">seconds</span>
+              </div>
+            </div>
+          </div>
+          <div class="pref-section">
+            <h3>SNMP Queries <button class="btn-small" id="addSnmpBtn"><i class="fas fa-plus"></i> Add</button></h3>
+            <div class="module-list" id="snmpList"></div>
+          </div>
+          <div class="pref-section">
+            <h3>Add / Edit SNMP Query</h3>
+            <div id="snmpForm" style="display:none;">
+              <div class="pref-row">
+                <label>Title</label>
+                <input type="text" id="snmp-title" placeholder="e.g., Router Uptime">
+              </div>
+              <div class="pref-row">
+                <label>Host</label>
+                <input type="text" id="snmp-host" placeholder="192.168.1.1">
+              </div>
+              <div class="pref-row">
+                <label>Port</label>
+                <input type="number" id="snmp-port" placeholder="161" value="161" min="1" max="65535">
+              </div>
+              <div class="pref-row">
+                <label>Community</label>
+                <input type="text" id="snmp-community" placeholder="public">
+              </div>
+              <div class="pref-row">
+                <label>OID</label>
+                <input type="text" id="snmp-oid" placeholder="1.3.6.1.2.1.1.3.0">
+              </div>
+              <div class="pref-row">
+                <label></label>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn-small" id="snmp-cancel">Cancel</button>
+                  <button class="btn-small" id="snmp-save" style="background:var(--accent); color:var(--bg);"><i class="fas fa-check"></i> Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="tab-content" id="tab-about">
           <div class="pref-section about-section">
             <div class="about-logo"><i class="fas fa-home fa-3x"></i></div>
@@ -465,6 +521,7 @@ const timers = {
   weather: {interval: 1800000, lastUpdate: 0, timer: null}, // 30 minutes
   ip: {interval: 7200000, lastUpdate: 0, timer: null}, // 2 hours
   monitoring: {interval: 60000, lastUpdate: 0, timer: null}, // 60 seconds
+  snmp: {interval: 60000, lastUpdate: 0, timer: null}, // 60 seconds
   general: {interval: 30000, lastUpdate: 0, timer: null} // 30 seconds for other data
 };
 
@@ -507,6 +564,12 @@ function formatBytes(bytes) {
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return (bytes / Math.pow(k, i)).toFixed(2) + " " + sizes[i];
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // History for bar graphs
@@ -1230,10 +1293,11 @@ const refreshHandlers = {
   github: refreshGitHub,
   weather: refreshWeather,
   ip: refreshIP,
-  monitoring: function() { if (window.refreshMonitoring) window.refreshMonitoring(); }
+  monitoring: function() { if (window.refreshMonitoring) window.refreshMonitoring(); },
+  snmp: function() { if (window.refreshSnmp) window.refreshSnmp(); }
 };
 
-["cpu", "ram", "disk", "github", "weather", "ip", "monitoring"].forEach(module => {
+["cpu", "ram", "disk", "github", "weather", "ip", "monitoring", "snmp"].forEach(module => {
   const timerEl = document.getElementById(module + "Timer");
   if (timerEl) {
     let lastClick = 0;
@@ -1266,7 +1330,8 @@ const moduleConfig = {
   ram: { name: 'RAM', icon: 'fa-memory', desc: 'Memory usage monitoring', hasTimer: true, timerKey: 'ram', defaultInterval: 5, enabled: true },
   disk: { name: 'Disk', icon: 'fa-hdd', desc: 'Disk space monitoring', hasTimer: true, timerKey: 'disk', defaultInterval: 15, enabled: true },
   links: { name: 'Quick Links', icon: 'fa-link', desc: 'Custom shortcut links', hasTimer: false, enabled: true },
-  monitoring: { name: 'Monitoring', icon: 'fa-heartbeat', desc: 'Service health monitoring', hasTimer: true, timerKey: 'monitoring', defaultInterval: 60, enabled: true }
+  monitoring: { name: 'Monitoring', icon: 'fa-heartbeat', desc: 'Service health monitoring', hasTimer: true, timerKey: 'monitoring', defaultInterval: 60, enabled: true },
+  snmp: { name: 'SNMP', icon: 'fa-network-wired', desc: 'SNMP device queries', hasTimer: true, timerKey: 'snmp', defaultInterval: 60, enabled: true }
 };
 
 // GitHub modules configuration (stored separately, can have multiple)
@@ -2252,6 +2317,30 @@ applyModuleVisibility();
     } catch (e) {}
   }
 
+  // Track when monitors went down
+  const monitorDownSince = {};
+
+  // Format time since (e.g., "2m 30s", "1h 15m", "3d 2h")
+  function formatTimeSince(ms) {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      const remainingHours = hours % 24;
+      return days + 'd' + (remainingHours > 0 ? ' ' + remainingHours + 'h' : '');
+    } else if (hours > 0) {
+      const remainingMinutes = minutes % 60;
+      return hours + 'h' + (remainingMinutes > 0 ? ' ' + remainingMinutes + 'm' : '');
+    } else if (minutes > 0) {
+      const remainingSeconds = seconds % 60;
+      return minutes + 'm' + (remainingSeconds > 0 ? ' ' + remainingSeconds + 's' : '');
+    } else {
+      return seconds + 's';
+    }
+  }
+
 // Render monitors in the card
   window.renderMonitors = function() {
     const container = document.getElementById('monitoringContainer');
@@ -2310,12 +2399,19 @@ applyModuleVisibility();
       const data = await res.json();
 
       if (data.success) {
+        // Monitor is up - clear down timestamp and show latency
+        delete monitorDownSince[index];
         statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#a3be8c;"></i>';
         resultEl.textContent = data.latency ? data.latency + 'ms' : 'OK';
         resultEl.style.color = '';
       } else {
+        // Monitor is down - track when it went down
+        if (!monitorDownSince[index]) {
+          monitorDownSince[index] = Date.now();
+        }
+        const timeSince = formatTimeSince(Date.now() - monitorDownSince[index]);
         statusEl.innerHTML = '<i class="fas fa-times-circle" style="color:#bf616a;"></i>';
-        resultEl.textContent = data.error || 'Failed';
+        resultEl.textContent = timeSince;
         resultEl.style.color = '#bf616a';
       }
 
@@ -2346,11 +2442,27 @@ applyModuleVisibility();
         }
       }
     } catch (e) {
-      statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ebcb8b;"></i>';
-      resultEl.textContent = 'Error';
-      resultEl.style.color = '#ebcb8b';
+      // Network error - treat as down
+      if (!monitorDownSince[index]) {
+        monitorDownSince[index] = Date.now();
+      }
+      const timeSince = formatTimeSince(Date.now() - monitorDownSince[index]);
+      statusEl.innerHTML = '<i class="fas fa-times-circle" style="color:#bf616a;"></i>';
+      resultEl.textContent = timeSince;
+      resultEl.style.color = '#bf616a';
       if (sslEl) sslEl.innerHTML = '';
     }
+  }
+
+  // Update display for down monitors (refresh the "since when" timer)
+  function updateDownMonitorsDisplay() {
+    Object.keys(monitorDownSince).forEach(index => {
+      const resultEl = document.getElementById('mon-result-' + index);
+      if (resultEl && monitorDownSince[index]) {
+        const timeSince = formatTimeSince(Date.now() - monitorDownSince[index]);
+        resultEl.textContent = timeSince;
+      }
+    });
   }
 
   // Refresh all monitors
@@ -2404,6 +2516,7 @@ applyModuleVisibility();
       // Delete button
       item.querySelector('.delete-mon-btn').addEventListener('click', () => {
         if (confirm('Delete monitor "' + mon.name + '"?')) {
+          delete monitorDownSince[index];
           monitors.splice(index, 1);
           saveMonitors();
           renderMonitorsList();
@@ -2573,6 +2686,231 @@ applyModuleVisibility();
   setInterval(function() {
     refreshMonitoring();
   }, timers.monitoring.interval);
+
+  // Update "since when" display every second for down monitors
+  setInterval(function() {
+    updateDownMonitorsDisplay();
+  }, 1000);
+})();
+
+// SNMP Module
+(function() {
+  let snmpQueries = [];
+
+  function loadSnmpQueries() {
+    try {
+      const saved = localStorage.getItem('snmpQueries');
+      if (saved) {
+        snmpQueries = JSON.parse(saved);
+      }
+    } catch (e) {}
+  }
+
+  function saveSnmpQueries() {
+    try {
+      localStorage.setItem('snmpQueries', JSON.stringify(snmpQueries));
+    } catch (e) {}
+  }
+
+  function saveSnmpInterval(seconds) {
+    try {
+      localStorage.setItem('snmpInterval', seconds.toString());
+      timers.snmp.interval = seconds * 1000;
+    } catch (e) {}
+  }
+
+  // Render SNMP queries in the card
+  window.renderSnmpQueries = function() {
+    const container = document.getElementById('snmpContainer');
+    if (!container) return;
+
+    if (snmpQueries.length === 0) {
+      container.innerHTML = '<div class="small" style="color:var(--muted);">Add queries in Preferences → SNMP</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    snmpQueries.forEach((query, index) => {
+      const row = document.createElement('div');
+      row.className = 'kv';
+      row.dataset.index = index;
+
+      const k = document.createElement('div');
+      k.className = 'k';
+      k.innerHTML = '<span class="monitor-status" id="snmp-status-' + index + '"><i class="fas fa-circle" style="color:var(--muted);"></i></span> ' + escapeHtml(query.title);
+
+      const v = document.createElement('div');
+      v.className = 'v mono';
+      v.id = 'snmp-value-' + index;
+      v.textContent = '—';
+
+      row.appendChild(k);
+      row.appendChild(v);
+      container.appendChild(row);
+    });
+  };
+
+  // Render SNMP list in preferences
+  function renderSnmpList() {
+    const list = document.getElementById('snmpList');
+    if (!list) return;
+
+    list.innerHTML = '';
+    snmpQueries.forEach((query, index) => {
+      const item = document.createElement('div');
+      item.className = 'module-item';
+      item.innerHTML = `
+        <div class="module-info">
+          <div class="module-name">${escapeHtml(query.title)}</div>
+          <div class="module-desc">${escapeHtml(query.host)}:${query.port} - ${escapeHtml(query.oid)}</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-small" onclick="editSnmpQuery(${index})"><i class="fas fa-edit"></i> Edit</button>
+          <button class="btn-small" onclick="deleteSnmpQuery(${index})" style="color:var(--error);"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  window.editSnmpQuery = function(index) {
+    const query = snmpQueries[index];
+    document.getElementById('snmp-title').value = query.title || '';
+    document.getElementById('snmp-host').value = query.host || '';
+    document.getElementById('snmp-port').value = query.port || 161;
+    document.getElementById('snmp-community').value = query.community || '';
+    document.getElementById('snmp-oid').value = query.oid || '';
+    document.getElementById('snmpForm').style.display = 'block';
+    document.getElementById('snmpForm').dataset.editIndex = index;
+  };
+
+  window.deleteSnmpQuery = function(index) {
+    if (confirm('Delete this SNMP query?')) {
+      snmpQueries.splice(index, 1);
+      saveSnmpQueries();
+      renderSnmpList();
+      renderSnmpQueries();
+    }
+  };
+
+  // Check a single SNMP query
+  window.checkSnmpQuery = async function(query, index) {
+    const statusEl = document.getElementById(`snmp-status-${index}`);
+    const valueEl = document.getElementById(`snmp-value-${index}`);
+
+    if (!statusEl || !valueEl) return;
+
+    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:var(--accent);"></i>';
+
+    try {
+      const url = `/api/snmp?host=${encodeURIComponent(query.host)}&port=${encodeURIComponent(query.port)}&community=${encodeURIComponent(query.community)}&oid=${encodeURIComponent(query.oid)}`;
+      const res = await fetch(url, {cache: "no-store"});
+      const data = await res.json();
+
+      if (data.success && data.value !== undefined) {
+        statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#a3be8c;"></i>';
+        valueEl.textContent = String(data.value);
+        valueEl.style.color = '';
+      } else {
+        statusEl.innerHTML = '<i class="fas fa-times-circle" style="color:#bf616a;"></i>';
+        valueEl.textContent = data.error || 'Error';
+        valueEl.style.color = '#bf616a';
+      }
+    } catch (err) {
+      statusEl.innerHTML = '<i class="fas fa-times-circle" style="color:#bf616a;"></i>';
+      valueEl.textContent = 'Error: ' + err.message;
+      valueEl.style.color = '#bf616a';
+    }
+  };
+
+  // Refresh all SNMP queries
+  window.refreshSnmp = function() {
+    updateTimer('snmp');
+    snmpQueries.forEach((query, index) => {
+      checkSnmpQuery(query, index);
+    });
+  };
+
+  // Add button
+  document.getElementById('addSnmpBtn').addEventListener('click', () => {
+    document.getElementById('snmp-title').value = '';
+    document.getElementById('snmp-host').value = '';
+    document.getElementById('snmp-port').value = '161';
+    document.getElementById('snmp-community').value = 'public';
+    document.getElementById('snmp-oid').value = '';
+    document.getElementById('snmpForm').style.display = 'block';
+    delete document.getElementById('snmpForm').dataset.editIndex;
+  });
+
+  // Cancel button
+  document.getElementById('snmp-cancel').addEventListener('click', () => {
+    document.getElementById('snmpForm').style.display = 'none';
+  });
+
+  // Save button
+  document.getElementById('snmp-save').addEventListener('click', () => {
+    const title = document.getElementById('snmp-title').value.trim();
+    const host = document.getElementById('snmp-host').value.trim();
+    const port = parseInt(document.getElementById('snmp-port').value) || 161;
+    const community = document.getElementById('snmp-community').value.trim();
+    const oid = document.getElementById('snmp-oid').value.trim();
+
+    if (!title || !host || !community || !oid) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    const editIndex = document.getElementById('snmpForm').dataset.editIndex;
+    const query = { title, host, port, community, oid };
+
+    if (editIndex !== undefined) {
+      snmpQueries[parseInt(editIndex)] = query;
+    } else {
+      snmpQueries.push(query);
+    }
+
+    saveSnmpQueries();
+    renderSnmpList();
+    renderSnmpQueries();
+    document.getElementById('snmpForm').style.display = 'none';
+  });
+
+  // Interval input
+  const intervalInput = document.getElementById('snmp-interval');
+  const savedInterval = localStorage.getItem('snmpInterval');
+  if (savedInterval) {
+    timers.snmp.interval = parseInt(savedInterval) * 1000;
+  }
+  intervalInput.value = timers.snmp.interval / 1000;
+  intervalInput.addEventListener('change', () => {
+    const val = Math.max(5, Math.min(3600, parseInt(intervalInput.value) || 60));
+    intervalInput.value = val;
+    saveSnmpInterval(val);
+  });
+
+  // Initialize on modal open
+  const prefsModal = document.getElementById('prefsModal');
+  const observer = new MutationObserver(() => {
+    if (prefsModal.classList.contains('active')) {
+      renderSnmpList();
+      intervalInput.value = timers.snmp.interval / 1000;
+    }
+  });
+  observer.observe(prefsModal, { attributes: true, attributeFilter: ['class'] });
+
+  // Initial render
+  loadSnmpQueries();
+  renderSnmpQueries();
+
+  // Initial check after a short delay
+  setTimeout(function() {
+    refreshSnmp();
+  }, 3000);
+
+  // Set up SNMP interval
+  setInterval(function() {
+    refreshSnmp();
+  }, timers.snmp.interval);
 })();
 
 // Set up intervals - each module refreshes independently
