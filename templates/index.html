@@ -1021,11 +1021,11 @@ async function refreshCPUInfo(){
     } else {
       // CPU Name
       document.getElementById("cpuidName").textContent = j.name || "—";
-      
+
       // Cores: Physical / Threads
       const coresText = (j.physicalCores || 0) + " / " + (j.virtualCores || 0);
       document.getElementById("cpuidCores").textContent = coresText;
-      
+
       // Speed: Min / Max / Current (MHz)
       let speedText = "—";
       if (j.speedMin || j.speedMax || j.speedCurrent) {
@@ -1044,7 +1044,7 @@ async function refreshCPUInfo(){
         }
       }
       document.getElementById("cpuidSpeed").textContent = speedText;
-      
+
       // Cache information - L1 with Instruction/Data, L2 and L3 each on their own line
       const cacheEl = document.getElementById("cpuidCache");
       if (j.cache && j.cache.length > 0) {
@@ -1056,15 +1056,15 @@ async function refreshCPUInfo(){
           }
           cacheByLevel[cache.level].push(cache);
         });
-        
+
         let cacheHTML = "";
-        
+
         // L1: Show Instruction and Data separately in value
         if (cacheByLevel[1] && cacheByLevel[1].length > 0) {
           const l1Caches = cacheByLevel[1];
           const l1Parts = [];
           l1Caches.forEach(cache => {
-            const sizeText = cache.sizeKB >= 1024 
+            const sizeText = cache.sizeKB >= 1024
               ? (cache.sizeKB / 1024).toFixed(1) + "MB"
               : cache.sizeKB + "KB";
             if (cache.type === "Instruction") {
@@ -1077,30 +1077,30 @@ async function refreshCPUInfo(){
           });
           cacheHTML += `<div class="kv"><div class="k">L1</div><div class="v mono">${l1Parts.join(", ")}</div></div>`;
         }
-        
+
         // L2: On its own line
         if (cacheByLevel[2] && cacheByLevel[2].length > 0) {
           const l2Cache = cacheByLevel[2][0];
-          const sizeText = l2Cache.sizeKB >= 1024 
+          const sizeText = l2Cache.sizeKB >= 1024
             ? (l2Cache.sizeKB / 1024).toFixed(1) + "MB"
             : l2Cache.sizeKB + "KB";
           cacheHTML += `<div class="kv"><div class="k">L2</div><div class="v mono">${sizeText}</div></div>`;
         }
-        
+
         // L3: On its own line
         if (cacheByLevel[3] && cacheByLevel[3].length > 0) {
           const l3Cache = cacheByLevel[3][0];
-          const sizeText = l3Cache.sizeKB >= 1024 
+          const sizeText = l3Cache.sizeKB >= 1024
             ? (l3Cache.sizeKB / 1024).toFixed(1) + "MB"
             : l3Cache.sizeKB + "KB";
           cacheHTML += `<div class="kv"><div class="k">L3</div><div class="v mono">${sizeText}</div></div>`;
         }
-        
+
         cacheEl.innerHTML = cacheHTML || "—";
       } else {
         cacheEl.innerHTML = "—";
       }
-      
+
       document.getElementById("cpuidErr").textContent = "";
     }
   } catch(err){
@@ -1565,6 +1565,11 @@ function renderGitHubModules() {
 
     container.appendChild(card);
   });
+
+  // Re-initialize drag and drop after GitHub modules are rendered
+  if (window.initDragAndDrop) {
+    setTimeout(() => window.initDragAndDrop(), 50);
+  }
 }
 
 // Render GitHub modules on page load
@@ -1682,7 +1687,7 @@ applyModuleVisibility();
       tabContents.forEach(c => c.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-      
+
       // Render layout editor when layout tab is opened
       if (tab.dataset.tab === 'layout' && window.layoutSystem) {
         setTimeout(() => {
@@ -3132,11 +3137,11 @@ setInterval(refreshIP, timers.ip.interval);
   function initializeDefaultLayout() {
     const grid = document.getElementById('moduleGrid');
     if (!grid) return;
-    
+
     const cards = Array.from(grid.querySelectorAll('.card[data-module]'));
     layoutConfig.rows = [];
     let currentRow = { cols: 3, modules: [] };
-    
+
     cards.forEach((card, index) => {
       const moduleId = card.getAttribute('data-module');
       if (moduleId) {
@@ -3151,11 +3156,11 @@ setInterval(refreshIP, timers.ip.interval);
         }
       }
     });
-    
+
     if (currentRow.modules.length > 0) {
       layoutConfig.rows.push(currentRow);
     }
-    
+
     if (layoutConfig.rows.length === 0) {
       layoutConfig.rows = [{ cols: 3, modules: [] }];
     }
@@ -3202,7 +3207,7 @@ setInterval(refreshIP, timers.ip.interval);
         colEl.className = 'layout-column';
         colEl.dataset.rowIndex = rowIndex;
         colEl.dataset.colIndex = col;
-        
+
         // Add empty column indicator or module
         const moduleId = row.modules[col];
         if (!moduleId) {
@@ -3220,7 +3225,7 @@ setInterval(refreshIP, timers.ip.interval);
             colEl.innerHTML = '<div class="empty-column-hint" style="display: none;">Drop module here</div>';
           }
         }
-        
+
         rowEl.appendChild(colEl);
       }
 
@@ -3281,7 +3286,7 @@ setInterval(refreshIP, timers.ip.interval);
       const moduleNames = row.modules
         .filter(m => m !== null)
         .map(m => getModuleName(m));
-      const modulesText = moduleNames.length > 0 
+      const modulesText = moduleNames.length > 0
         ? ': ' + moduleNames.join(', ')
         : ' (empty)';
 
@@ -3432,6 +3437,22 @@ setInterval(refreshIP, timers.ip.interval);
     localStorage.setItem('moduleOrder', JSON.stringify(order));
   }
 
+  // Helper function to find which column a card is in
+  function findCardColumn(card) {
+    let current = card.parentElement;
+    while (current) {
+      if (current.classList.contains('layout-column')) {
+        return {
+          rowIndex: parseInt(current.dataset.rowIndex),
+          colIndex: parseInt(current.dataset.colIndex),
+          column: current
+        };
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+
   // Initialize drag and drop
   function initDragAndDrop() {
     if (!grid) {
@@ -3439,7 +3460,11 @@ setInterval(refreshIP, timers.ip.interval);
       if (!grid) return;
     }
 
-    const cards = Array.from(grid.querySelectorAll('.card[data-module]'));
+    // Get cards from both moduleGrid and githubModulesContainer
+    const gridCards = Array.from(grid.querySelectorAll('.card[data-module]'));
+    const githubContainer = document.getElementById('githubModulesContainer');
+    const githubCards = githubContainer ? Array.from(githubContainer.querySelectorAll('.card[data-module]')) : [];
+    const cards = [...gridCards, ...githubCards];
     const columns = Array.from(grid.querySelectorAll('.layout-column'));
 
     // Setup card drag
@@ -3447,7 +3472,7 @@ setInterval(refreshIP, timers.ip.interval);
       // Skip if already has drag listeners
       if (card.dataset.dragInitialized === 'true') return;
       card.dataset.dragInitialized = 'true';
-      
+
       card.addEventListener('dragstart', function(e) {
         const target = e.target;
         if (target.classList.contains('drag-handle') || target.closest('.drag-handle')) {
@@ -3466,7 +3491,7 @@ setInterval(refreshIP, timers.ip.interval);
         this.style.opacity = '0.5';
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/html', this.innerHTML);
-        
+
         // Show empty column hints when dragging starts
         const emptyColumns = grid.querySelectorAll('.layout-column.empty-column');
         emptyColumns.forEach(col => col.classList.add('dragging-active'));
@@ -3475,7 +3500,7 @@ setInterval(refreshIP, timers.ip.interval);
       card.addEventListener('dragend', function(e) {
         this.style.opacity = '1';
         // Remove drag-over styling from all cards and columns
-        const allCards = Array.from(grid.querySelectorAll('.card[data-module]'));
+        const allCards = Array.from(document.querySelectorAll('.card[data-module]'));
         const allColumns = Array.from(grid.querySelectorAll('.layout-column'));
         allCards.forEach(c => c.classList.remove('drag-over'));
         allColumns.forEach(c => {
@@ -3503,6 +3528,69 @@ setInterval(refreshIP, timers.ip.interval);
         e.preventDefault();
         e.stopPropagation();
         this.classList.remove('drag-over');
+
+        if (draggedElement && this !== draggedElement) {
+          const draggedModuleId = draggedElement.getAttribute('data-module');
+          const targetModuleId = this.getAttribute('data-module');
+
+          const draggedPos = findCardColumn(draggedElement);
+          const targetPos = findCardColumn(this);
+
+          if (draggedPos && targetPos) {
+            // Both cards are in layout columns - swap them
+            const layoutConfig = window.layoutSystem.getLayoutConfig();
+
+            // Swap in layout config
+            if (layoutConfig.rows[draggedPos.rowIndex] && layoutConfig.rows[targetPos.rowIndex]) {
+              layoutConfig.rows[draggedPos.rowIndex].modules[draggedPos.colIndex] = targetModuleId;
+              layoutConfig.rows[targetPos.rowIndex].modules[targetPos.colIndex] = draggedModuleId;
+
+              window.layoutSystem.saveLayoutConfig();
+              window.layoutSystem.renderLayout();
+              setTimeout(() => initDragAndDrop(), 50);
+            }
+          } else if (draggedPos && !targetPos) {
+            // Dragged card is in layout, target is not (e.g., GitHub module in separate container)
+            // Move dragged card to target's position (if target is in a column)
+            const targetCol = findCardColumn(this);
+            if (targetCol) {
+              const layoutConfig = window.layoutSystem.getLayoutConfig();
+              // Remove from old position
+              layoutConfig.rows.forEach(row => {
+                const idx = row.modules.indexOf(draggedModuleId);
+                if (idx !== -1) {
+                  row.modules[idx] = null;
+                }
+              });
+              // Add to target position
+              if (layoutConfig.rows[targetCol.rowIndex]) {
+                const oldModuleId = layoutConfig.rows[targetCol.rowIndex].modules[targetCol.colIndex];
+                layoutConfig.rows[targetCol.rowIndex].modules[targetCol.colIndex] = draggedModuleId;
+                // If target was in layout, move it to dragged position
+                if (oldModuleId && oldModuleId !== draggedModuleId) {
+                  if (layoutConfig.rows[draggedPos.rowIndex]) {
+                    layoutConfig.rows[draggedPos.rowIndex].modules[draggedPos.colIndex] = oldModuleId;
+                  }
+                }
+              }
+              window.layoutSystem.saveLayoutConfig();
+              window.layoutSystem.renderLayout();
+              setTimeout(() => initDragAndDrop(), 50);
+            }
+          } else if (!draggedPos && targetPos) {
+            // Dragged card is not in layout (e.g., GitHub module), target is in layout
+            // This case is handled by column drop handler, but we can also handle it here
+            const layoutConfig = window.layoutSystem.getLayoutConfig();
+            // Remove target from layout
+            if (layoutConfig.rows[targetPos.rowIndex]) {
+              layoutConfig.rows[targetPos.rowIndex].modules[targetPos.colIndex] = draggedModuleId;
+            }
+            window.layoutSystem.saveLayoutConfig();
+            window.layoutSystem.renderLayout();
+            setTimeout(() => initDragAndDrop(), 50);
+          }
+        }
+
         return false;
       });
     });
@@ -3530,7 +3618,12 @@ setInterval(refreshIP, timers.ip.interval);
           const colIndex = parseInt(this.dataset.colIndex);
           const moduleId = draggedElement.getAttribute('data-module');
 
-          // Remove from old position
+          // Check if this is a GitHub module that needs to be moved from githubModulesContainer
+          const githubContainer = document.getElementById('githubModulesContainer');
+          const isGitHubModule = moduleId && moduleId.startsWith('github-');
+          const isInGitHubContainer = githubContainer && githubContainer.contains(draggedElement);
+
+          // Remove from old position in layout config
           const layoutConfig = window.layoutSystem.getLayoutConfig();
           layoutConfig.rows.forEach(row => {
             const idx = row.modules.indexOf(moduleId);
@@ -3539,9 +3632,18 @@ setInterval(refreshIP, timers.ip.interval);
             }
           });
 
-          // Add to new position
+          // If there's a module in the target position, swap it
           if (layoutConfig.rows[rowIndex]) {
+            const existingModuleId = layoutConfig.rows[rowIndex].modules[colIndex];
             layoutConfig.rows[rowIndex].modules[colIndex] = moduleId;
+
+            // If there was an existing module and the dragged module was in layout, move existing to dragged position
+            if (existingModuleId && !isInGitHubContainer) {
+              const draggedPos = findCardColumn(draggedElement);
+              if (draggedPos && layoutConfig.rows[draggedPos.rowIndex]) {
+                layoutConfig.rows[draggedPos.rowIndex].modules[draggedPos.colIndex] = existingModuleId;
+              }
+            }
           }
 
           window.layoutSystem.saveLayoutConfig();
@@ -3579,6 +3681,9 @@ setInterval(refreshIP, timers.ip.interval);
     // Delay init to ensure all other handlers are set up first and cards are in final order
     setTimeout(initDragAndDrop, 200);
   });
+
+  // Expose initDragAndDrop so it can be called after GitHub modules are rendered
+  window.initDragAndDrop = initDragAndDrop;
 })();
 </script>
 <style>
