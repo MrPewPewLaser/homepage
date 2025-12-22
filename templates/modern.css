@@ -143,6 +143,11 @@ body{
     z-index:1000;
     backdrop-filter: blur(20px);
   }
+  .header .drop .menu{
+    bottom:auto; top:100%;
+    margin-top:8px;
+    margin-bottom:0;
+  }
   .footer .drop .menu{
     bottom:100%; top:auto;
   }

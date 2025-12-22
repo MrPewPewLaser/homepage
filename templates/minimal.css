@@ -189,6 +189,11 @@ a{color:inherit}
   box-shadow:0 4px 12px rgba(0,0,0,.1);
   z-index:1000;
 }
+.header .drop .menu{
+  bottom:auto; top:100%;
+  margin-top:8px;
+  margin-bottom:0;
+}
 .footer .drop .menu{
   bottom:100%; top:auto;
 }
