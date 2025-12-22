@@ -109,6 +109,15 @@
         <div class="usage-graph" id="diskGraph"></div>
       </div>
 
+      <div class="card span-4" data-module="cpuid" draggable="true">
+        <h3><i class="fas fa-microchip"></i> CPU Info<div class="header-icons"><div class="timer-circle" id="cpuidTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div class="kv"><div class="k">Name</div><div class="v mono" id="cpuidName">—</div></div>
+        <div class="kv"><div class="k">Cores</div><div class="v mono" id="cpuidCores">—</div></div>
+        <div class="kv"><div class="k">Speed</div><div class="v mono" id="cpuidSpeed">—</div></div>
+        <div id="cpuidCache"></div>
+        <div class="small" id="cpuidErr"></div>
+      </div>
+
       <div class="card span-6" data-module="links" draggable="true">
         <h3><i class="fas fa-link"></i> Quick Links<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div id="quicklinksContainer">
@@ -404,8 +413,8 @@
         <div class="tab-content" id="tab-about">
           <div class="pref-section about-section">
             <div class="about-logo"><i class="fas fa-home fa-3x"></i></div>
-            <h3>Homepage Dashboard</h3>
-            <p class="about-version">Version 1.0.0</p>
+            <h3>LAN Index Dashboard</h3>
+            <p class="about-version">Version 0.1.641</p>
             <p class="about-desc">A personal dashboard for monitoring your system, weather, GitHub activity, and more.</p>
             <div class="about-links">
               <a href="https://github.com/Earentir/homepage" target="_blank" rel="noreferrer"><i class="fab fa-github"></i> Source Code</a>
@@ -977,6 +986,68 @@ async function refreshDisk(){
   }
 }
 
+async function refreshCPUInfo(){
+  try{
+    const res = await fetch("/api/cpuid", {cache:"no-store"});
+    const j = await res.json();
+    if (j.error) {
+      document.getElementById("cpuidName").textContent = "—";
+      document.getElementById("cpuidCores").textContent = "—";
+      document.getElementById("cpuidSpeed").textContent = "—";
+      document.getElementById("cpuidCache").innerHTML = "";
+      document.getElementById("cpuidErr").textContent = j.error;
+    } else {
+      // CPU Name
+      document.getElementById("cpuidName").textContent = j.name || "—";
+      
+      // Cores: Physical / Virtual
+      const coresText = (j.physicalCores || 0) + " / " + (j.virtualCores || 0);
+      document.getElementById("cpuidCores").textContent = coresText;
+      
+      // Speed: Min / Max / Current (MHz)
+      let speedText = "—";
+      if (j.speedMin || j.speedMax || j.speedCurrent) {
+        const parts = [];
+        if (j.speedMin) parts.push(j.speedMin.toFixed(0) + " MHz");
+        if (j.speedMax && j.speedMax !== j.speedMin) parts.push(j.speedMax.toFixed(0) + " MHz");
+        if (j.speedCurrent && j.speedCurrent !== j.speedMin && j.speedCurrent !== j.speedMax) {
+          parts.push(j.speedCurrent.toFixed(0) + " MHz");
+        }
+        if (parts.length > 0) {
+          speedText = parts.join(" / ");
+        } else if (j.speedCurrent) {
+          speedText = j.speedCurrent.toFixed(0) + " MHz";
+        } else if (j.speedMax) {
+          speedText = j.speedMax.toFixed(0) + " MHz";
+        }
+      }
+      document.getElementById("cpuidSpeed").textContent = speedText;
+      
+      // Cache information (L1, L2, L3)
+      const cacheEl = document.getElementById("cpuidCache");
+      if (j.cache && j.cache.length > 0) {
+        let cacheHTML = "";
+        j.cache.forEach(cache => {
+          const sizeText = cache.sizeKB >= 1024 
+            ? (cache.sizeKB / 1024).toFixed(1) + " MB"
+            : cache.sizeKB + " KB";
+          const speedText = cache.speedMHz ? " @ " + cache.speedMHz.toFixed(0) + " MHz" : "";
+          cacheHTML += `<div class="kv"><div class="k">L${cache.level} ${cache.type}</div><div class="v mono">${sizeText}${speedText}</div></div>`;
+        });
+        cacheEl.innerHTML = cacheHTML;
+      } else {
+        cacheEl.innerHTML = "";
+      }
+      
+      document.getElementById("cpuidErr").textContent = "";
+    }
+    startTimer("cpuid");
+  } catch(err){
+    console.error("Error refreshing CPU Info:", err);
+    document.getElementById("cpuidErr").textContent = "Failed to fetch CPU info";
+  }
+}
+
 // Weather code to icon and description mapping (Open-Meteo WMO codes)
 function getWeatherIcon(code) {
   let icon, desc;
@@ -1320,6 +1391,7 @@ document.getElementById("refreshBtn").onclick = refresh;
 // Setup double-click handlers for timers
 const refreshHandlers = {
   cpu: refreshCPU,
+  cpuid: refreshCPUInfo,
   ram: refreshRAM,
   disk: refreshDisk,
   github: refreshGitHub,
@@ -1329,7 +1401,7 @@ const refreshHandlers = {
   snmp: function() { if (window.refreshSnmp) window.refreshSnmp(); }
 };
 
-["cpu", "ram", "disk", "github", "weather", "ip", "monitoring", "snmp"].forEach(module => {
+["cpu", "cpuid", "ram", "disk", "github", "weather", "ip", "monitoring", "snmp"].forEach(module => {
   const timerEl = document.getElementById(module + "Timer");
   if (timerEl) {
     let lastClick = 0;
@@ -1359,6 +1431,7 @@ const moduleConfig = {
   network: { name: 'Network', icon: 'fa-network-wired', desc: 'LAN and public IP addresses', hasTimer: true, timerKey: 'ip', defaultInterval: 7200, enabled: true },
   weather: { name: 'Weather', icon: 'fa-cloud-sun', desc: 'Current weather and forecast', hasTimer: true, timerKey: 'weather', defaultInterval: 1800, enabled: true },
   cpu: { name: 'CPU', icon: 'fa-microchip', desc: 'CPU usage monitoring', hasTimer: true, timerKey: 'cpu', defaultInterval: 5, enabled: true },
+  cpuid: { name: 'CPU Info', icon: 'fa-microchip', desc: 'CPU specifications and cache', hasTimer: true, timerKey: 'cpuid', defaultInterval: 300, enabled: true },
   ram: { name: 'RAM', icon: 'fa-memory', desc: 'Memory usage monitoring', hasTimer: true, timerKey: 'ram', defaultInterval: 5, enabled: true },
   disk: { name: 'Disk', icon: 'fa-hdd', desc: 'Disk space monitoring', hasTimer: true, timerKey: 'disk', defaultInterval: 15, enabled: true },
   links: { name: 'Quick Links', icon: 'fa-link', desc: 'Custom shortcut links', hasTimer: false, enabled: true },
@@ -1453,6 +1526,7 @@ function initGraphs() {
 }
 setTimeout(initGraphs, 0);
 refreshCPU();
+refreshCPUInfo();
 refreshRAM();
 refreshDisk();
 refreshGitHub();
@@ -2957,6 +3031,7 @@ applyModuleVisibility();
 // Set up intervals - each module refreshes independently
 setInterval(refresh, 30000); // General refresh every 30s (server info only)
 setInterval(refreshCPU, timers.cpu.interval);
+setInterval(refreshCPUInfo, timers.cpuid.interval);
 setInterval(refreshRAM, timers.ram.interval);
 setInterval(refreshDisk, timers.disk.interval);
 setInterval(refreshGitHub, timers.github.interval);

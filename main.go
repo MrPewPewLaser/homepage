@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/earentir/cpuid"
 	"github.com/gosnmp/gosnmp"
 	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -164,6 +165,24 @@ type DiskInfo struct {
 	Free    uint64  `json:"free"`
 	Percent float64 `json:"percent"`
 	Error   string  `json:"error,omitempty"`
+}
+
+type CPUDetailsInfo struct {
+	Name         string            `json:"name"`
+	PhysicalCores int              `json:"physicalCores"`
+	VirtualCores  int              `json:"virtualCores"`
+	SpeedMin      float64          `json:"speedMin,omitempty"`
+	SpeedMax      float64          `json:"speedMax,omitempty"`
+	SpeedCurrent  float64          `json:"speedCurrent,omitempty"`
+	Cache         []CPUCacheInfo   `json:"cache,omitempty"`
+	Error         string           `json:"error,omitempty"`
+}
+
+type CPUCacheInfo struct {
+	Level    int     `json:"level"`
+	Type     string  `json:"type"`
+	SizeKB   int     `json:"sizeKB"`
+	SpeedMHz float64 `json:"speedMHz,omitempty"`
 }
 
 type GitHubUserRepos struct {
@@ -728,6 +747,12 @@ func main() {
 	mux.HandleFunc("/api/system", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		resp := getSystemMetrics(ctx)
+		writeJSON(w, resp)
+	})
+
+	mux.HandleFunc("/api/cpuid", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		resp := getCPUDetails(ctx)
 		writeJSON(w, resp)
 	})
 
@@ -2865,6 +2890,66 @@ func getSystemMetrics(ctx context.Context) SystemMetrics {
 	}
 
 	return metrics
+}
+
+func getCPUDetails(ctx context.Context) CPUDetailsInfo {
+	var info CPUDetailsInfo
+
+	// Get vendor and max functions
+	vendorID := cpuid.GetVendorID(false, "")
+	maxFunc, maxExtFunc := cpuid.GetMaxFunctions(false, "")
+
+	// Get brand string (full CPU name)
+	brand := cpuid.GetBrandString(maxExtFunc, false, "")
+	if brand != "" {
+		info.Name = strings.TrimSpace(brand)
+	} else {
+		info.Name = "Unknown CPU"
+	}
+
+	// Get processor info for cores
+	procInfo := cpuid.GetProcessorInfo(maxFunc, maxExtFunc, false, "")
+	info.PhysicalCores = int(procInfo.CoreCount)
+	info.VirtualCores = int(procInfo.CoreCount * procInfo.ThreadPerCore)
+
+	// Get CPU frequencies using gopsutil
+	freqs, err := cpu.InfoWithContext(ctx)
+	if err == nil && len(freqs) > 0 {
+		// Get min/max/current from first CPU
+		f := freqs[0]
+		info.SpeedMin = f.Mhz
+		info.SpeedMax = f.Mhz
+		info.SpeedCurrent = f.Mhz
+
+		// Check all CPUs for min/max range
+		for _, f := range freqs {
+			if f.Mhz < info.SpeedMin {
+				info.SpeedMin = f.Mhz
+			}
+			if f.Mhz > info.SpeedMax {
+				info.SpeedMax = f.Mhz
+			}
+		}
+	}
+
+	// Get cache information
+	caches, err := cpuid.GetCacheInfo(maxFunc, maxExtFunc, vendorID, false, "")
+	if err == nil {
+		for _, cache := range caches {
+		// Only include L1, L2, L3
+		if cache.Level >= 1 && cache.Level <= 3 {
+			cacheInfo := CPUCacheInfo{
+				Level:  int(cache.Level),
+				Type:   cache.Type,
+				SizeKB: int(cache.SizeKB),
+			}
+				// Cache speed is not directly available from cpuid, would need additional sources
+				info.Cache = append(info.Cache, cacheInfo)
+			}
+		}
+	}
+
+	return info
 }
 
 func format1(v float64) string {
