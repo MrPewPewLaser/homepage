@@ -110,24 +110,9 @@
         <div class="kv"><div class="k">Service checks</div><div class="v"><span class="small">Add /api/checks later</span></div></div>
       </div>
 
-      <div class="card span-6" data-module="github-user" draggable="true">
-        <h3><i class="fab fa-github"></i> GitHub - Earentir<div class="header-icons"><a href="https://github.com/Earentir" target="_blank" rel="noreferrer"><i class="fas fa-external-link-alt"></i></a><div class="timer-circle" id="githubTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
-        <div class="small" style="margin-bottom:8px; color:var(--muted);">Total: <span id="userRepoCount">—</span> repositories</div>
-        <div id="githubUserRepos">
-          <div class="small">Loading repositories...</div>
-        </div>
-        <div class="small" id="githubUserErr"></div>
-      </div>
-
-      <div class="card span-6" data-module="github-org" draggable="true">
-        <h3><i class="fab fa-github"></i> GitHub - network-plane<div class="header-icons"><a href="https://github.com/network-plane" target="_blank" rel="noreferrer"><i class="fas fa-external-link-alt"></i></a><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
-        <div class="small" style="margin-bottom:8px; color:var(--muted);">Total: <span id="orgRepoCount">—</span> repositories</div>
-        <div id="githubOrgRepos">
-          <div class="small">Loading repositories...</div>
-        </div>
-        <div class="small" id="githubOrgErr"></div>
-      </div>
     </div>
+    <!-- GitHub modules are dynamically rendered as siblings of grid cards -->
+    <div id="githubModulesContainer" class="grid" style="margin-top: 12px;"></div>
   </div>
 
   <div class="footer">
@@ -209,6 +194,10 @@
           <div class="pref-section">
             <h3>Module Settings</h3>
             <div class="module-list" id="moduleList"></div>
+          </div>
+          <div class="pref-section">
+            <h3>GitHub Modules <button class="btn-small" id="addGitHubBtn"><i class="fas fa-plus"></i> Add</button></h3>
+            <div class="module-list" id="githubModuleList"></div>
           </div>
         </div>
         <div class="tab-content" id="tab-about">
@@ -699,170 +688,87 @@ async function refreshWeather(){
   }
 }
 
-const GITHUB_CACHE_KEY = 'githubData';
-const GITHUB_CACHE_MAX_AGE = 15 * 60 * 1000; // 15 minutes in milliseconds
 
-function getGitHubCache() {
+function renderGitHubRepos(moduleId, data) {
+    const container = document.getElementById("repos-" + moduleId);
+    const countEl = document.getElementById("repoCount-" + moduleId);
+    const errEl = document.getElementById("repoErr-" + moduleId);
+
+    if (!container) return;
+
+    if (data.error) {
+      container.innerHTML = "";
+      if (errEl) errEl.textContent = data.error;
+      if (countEl) countEl.textContent = "—";
+      return;
+    }
+
+    if (data.repos && data.repos.length > 0) {
+      if (countEl) countEl.textContent = data.total || data.repos.length;
+      container.innerHTML = "";
+      data.repos.forEach((repo) => {
+        const item = document.createElement("div");
+        item.className = "repo-item";
+        const name = document.createElement("div");
+        name.className = "repo-name";
+        const link = document.createElement("a");
+        link.href = repo.url;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.innerHTML = '<i class="fab fa-github"></i> ' + repo.fullName;
+        name.appendChild(link);
+        item.appendChild(name);
+        if (repo.description) {
+          const desc = document.createElement("div");
+          desc.className = "repo-desc";
+          desc.textContent = repo.description;
+          item.appendChild(desc);
+        }
+        const meta = document.createElement("div");
+        meta.className = "repo-meta";
+        if (repo.stars > 0) {
+          const stars = document.createElement("span");
+          stars.innerHTML = '<i class="fas fa-star"></i> ' + repo.stars;
+          meta.appendChild(stars);
+        }
+        if (repo.language) {
+          const lang = document.createElement("span");
+          lang.innerHTML = '<i class="fas fa-code"></i> ' + repo.language;
+          meta.appendChild(lang);
+        }
+        if (repo.updated) {
+          const updated = document.createElement("span");
+          updated.innerHTML = '<i class="fas fa-clock"></i> ' + repo.updated;
+          meta.appendChild(updated);
+        }
+        item.appendChild(meta);
+        container.appendChild(item);
+      });
+      if (errEl) errEl.textContent = "";
+    } else {
+      container.innerHTML = '<div class="small">No repositories found.</div>';
+      if (countEl) countEl.textContent = "0";
+      if (errEl) errEl.textContent = "";
+    }
+}
+
+async function refreshGitHubModule(mod) {
   try {
-    const cached = localStorage.getItem(GITHUB_CACHE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed.timestamp && Date.now() - parsed.timestamp < GITHUB_CACHE_MAX_AGE) {
-        return { data: parsed.data, timestamp: parsed.timestamp };
-      }
-    }
-  } catch (e) {
-    // Ignore cache errors
-  }
-  return null;
-}
-
-function saveGitHubCache(data) {
-  try {
-    localStorage.setItem(GITHUB_CACHE_KEY, JSON.stringify({
-      timestamp: Date.now(),
-      data: data
-    }));
-  } catch (e) {
-    // Ignore storage errors
+    const res = await fetch("/api/github/repos?name=" + encodeURIComponent(mod.name) + "&type=" + mod.type, {cache:"no-store"});
+    const data = await res.json();
+    renderGitHubRepos(mod.id, data);
+  } catch(err) {
+    console.error("Error refreshing GitHub module " + mod.id + ":", err);
+    const errEl = document.getElementById("repoErr-" + mod.id);
+    if (errEl) errEl.textContent = "Error loading repos";
   }
 }
 
-function renderGitHubData(j) {
-    // GitHub user repos
-    const userContainer = document.getElementById("githubUserRepos");
-    const userErr = document.getElementById("githubUserErr");
-    if (j.userRepos) {
-      if (j.userRepos.repos && j.userRepos.repos.length > 0) {
-        document.getElementById("userRepoCount").textContent = j.userRepos.total || j.userRepos.repos.length;
-        userContainer.innerHTML = "";
-        j.userRepos.repos.forEach((repo) => {
-          const item = document.createElement("div");
-          item.className = "repo-item";
-          const name = document.createElement("div");
-          name.className = "repo-name";
-          const link = document.createElement("a");
-          link.href = repo.url;
-          link.target = "_blank";
-          link.rel = "noreferrer";
-          link.innerHTML = '<i class="fab fa-github"></i> ' + repo.fullName;
-          name.appendChild(link);
-          item.appendChild(name);
-          if (repo.description) {
-            const desc = document.createElement("div");
-            desc.className = "repo-desc";
-            desc.textContent = repo.description;
-            item.appendChild(desc);
-          }
-          const meta = document.createElement("div");
-          meta.className = "repo-meta";
-          if (repo.stars > 0) {
-            const stars = document.createElement("span");
-            stars.innerHTML = '<i class="fas fa-star"></i> ' + repo.stars;
-            meta.appendChild(stars);
-          }
-          if (repo.language) {
-            const lang = document.createElement("span");
-            lang.innerHTML = '<i class="fas fa-code"></i> ' + repo.language;
-            meta.appendChild(lang);
-          }
-          if (repo.updated) {
-            const updated = document.createElement("span");
-            updated.innerHTML = '<i class="fas fa-clock"></i> ' + repo.updated;
-            meta.appendChild(updated);
-          }
-          item.appendChild(meta);
-          userContainer.appendChild(item);
-        });
-        userErr.textContent = "";
-      } else if (j.userRepos && j.userRepos.error) {
-        userContainer.innerHTML = "";
-        userErr.textContent = j.userRepos.error;
-      } else {
-        userContainer.innerHTML = '<div class="small">No repositories found.</div>';
-        userErr.textContent = "";
-      }
-    }
-
-    // GitHub org repos
-    const orgContainer = document.getElementById("githubOrgRepos");
-    const orgErr = document.getElementById("githubOrgErr");
-    if (j.orgRepos) {
-      if (j.orgRepos.repos && j.orgRepos.repos.length > 0) {
-        document.getElementById("orgRepoCount").textContent = j.orgRepos.total || j.orgRepos.repos.length;
-        orgContainer.innerHTML = "";
-        j.orgRepos.repos.forEach((repo) => {
-          const item = document.createElement("div");
-          item.className = "repo-item";
-          const name = document.createElement("div");
-          name.className = "repo-name";
-          const link = document.createElement("a");
-          link.href = repo.url;
-          link.target = "_blank";
-          link.rel = "noreferrer";
-          link.innerHTML = '<i class="fab fa-github"></i> ' + repo.fullName;
-          name.appendChild(link);
-          item.appendChild(name);
-          if (repo.description) {
-            const desc = document.createElement("div");
-            desc.className = "repo-desc";
-            desc.textContent = repo.description;
-            item.appendChild(desc);
-          }
-          const meta = document.createElement("div");
-          meta.className = "repo-meta";
-          if (repo.stars > 0) {
-            const stars = document.createElement("span");
-            stars.innerHTML = '<i class="fas fa-star"></i> ' + repo.stars;
-            meta.appendChild(stars);
-          }
-          if (repo.language) {
-            const lang = document.createElement("span");
-            lang.innerHTML = '<i class="fas fa-code"></i> ' + repo.language;
-            meta.appendChild(lang);
-          }
-          if (repo.updated) {
-            const updated = document.createElement("span");
-            updated.innerHTML = '<i class="fas fa-clock"></i> ' + repo.updated;
-            meta.appendChild(updated);
-          }
-          item.appendChild(meta);
-          orgContainer.appendChild(item);
-        });
-        orgErr.textContent = "";
-      } else if (j.orgRepos && j.orgRepos.error) {
-        orgContainer.innerHTML = "";
-        orgErr.textContent = j.orgRepos.error;
-      } else {
-        orgContainer.innerHTML = '<div class="small">No repositories found.</div>';
-        orgErr.textContent = "";
-      }
-    }
-}
-
-async function refreshGitHub(forceRefresh = false){
+async function refreshGitHub(){
   try{
-    // Check localStorage cache first (unless forcing refresh)
-    if (!forceRefresh) {
-      const cached = getGitHubCache();
-      if (cached) {
-        renderGitHubData(cached.data);
-        // Set timer based on when the cache was created
-        timers.github.lastUpdate = cached.timestamp;
-        if (timers.github.timer) clearInterval(timers.github.timer);
-        timers.github.timer = setInterval(() => updateTimer("github"), 1000);
-        updateTimer("github");
-        return;
-      }
-    }
-
-    const res = await fetch("/api/github", {cache:"no-store"});
-    const j = await res.json();
-
-    // Save to localStorage cache
-    saveGitHubCache(j);
-
-    renderGitHubData(j);
+    // Refresh all enabled GitHub modules
+    const promises = githubModules.filter(m => m.enabled).map(mod => refreshGitHubModule(mod));
+    await Promise.all(promises);
     startTimer("github");
   } catch(err){
     console.error("Error refreshing GitHub:", err);
@@ -957,6 +863,72 @@ const refreshHandlers = {
   }
 });
 
+// Module configuration with defaults
+const moduleConfig = {
+  status: { name: 'Status', icon: 'fa-server', desc: 'Server status and uptime', hasTimer: false, enabled: true },
+  network: { name: 'Network', icon: 'fa-network-wired', desc: 'LAN and public IP addresses', hasTimer: true, timerKey: 'ip', defaultInterval: 7200, enabled: true },
+  weather: { name: 'Weather', icon: 'fa-cloud-sun', desc: 'Current weather and forecast', hasTimer: true, timerKey: 'weather', defaultInterval: 1800, enabled: true },
+  cpu: { name: 'CPU', icon: 'fa-microchip', desc: 'CPU usage monitoring', hasTimer: true, timerKey: 'cpu', defaultInterval: 5, enabled: true },
+  ram: { name: 'RAM', icon: 'fa-memory', desc: 'Memory usage monitoring', hasTimer: true, timerKey: 'ram', defaultInterval: 5, enabled: true },
+  disk: { name: 'Disk', icon: 'fa-hdd', desc: 'Disk space monitoring', hasTimer: true, timerKey: 'disk', defaultInterval: 15, enabled: true },
+  links: { name: 'Quick Links', icon: 'fa-link', desc: 'Custom shortcut links', hasTimer: false, enabled: true },
+  utilities: { name: 'Utilities', icon: 'fa-tools', desc: 'System utilities', hasTimer: false, enabled: true }
+};
+
+// GitHub modules configuration (stored separately, can have multiple)
+const defaultGitHubModules = [
+  { id: 'github-1', type: 'user', name: 'Earentir', url: 'https://github.com/Earentir', enabled: true },
+  { id: 'github-2', type: 'org', name: 'network-plane', url: 'https://github.com/network-plane', enabled: true }
+];
+
+let githubModules = [];
+try {
+  const saved = localStorage.getItem('githubModules');
+  if (saved) {
+    githubModules = JSON.parse(saved);
+  } else {
+    githubModules = defaultGitHubModules;
+  }
+} catch (e) {
+  githubModules = defaultGitHubModules;
+}
+
+function saveGitHubModules() {
+  localStorage.setItem('githubModules', JSON.stringify(githubModules));
+}
+
+function renderGitHubModules() {
+  const container = document.getElementById('githubModulesContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  githubModules.forEach((mod, index) => {
+    if (!mod.enabled) return;
+
+    const card = document.createElement('div');
+    card.className = 'card span-6';
+    card.setAttribute('data-module', mod.id);
+    card.setAttribute('draggable', 'true');
+
+    const hasTimer = index === 0; // Only first GitHub module has the timer
+    const timerHtml = hasTimer ? '<div class="timer-circle" id="githubTimer" title="Double-click to refresh"></div>' : '';
+
+    card.innerHTML = `
+      <h3><i class="fab fa-github"></i> GitHub - ${mod.name}<div class="header-icons"><a href="${mod.url}" target="_blank" rel="noreferrer"><i class="fas fa-external-link-alt"></i></a>${timerHtml}<i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+      <div class="small" style="margin-bottom:8px; color:var(--muted);">Total: <span id="repoCount-${mod.id}">—</span> repositories</div>
+      <div id="repos-${mod.id}">
+        <div class="small">Loading repositories...</div>
+      </div>
+      <div class="small" id="repoErr-${mod.id}"></div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+// Render GitHub modules on page load
+renderGitHubModules();
+
 // Initial refresh
 refresh();
 renderCpuGraph(); // Render saved CPU history
@@ -968,20 +940,6 @@ refreshDisk();
 refreshGitHub();
 refreshWeather();
 refreshIP();
-
-// Module configuration with defaults
-const moduleConfig = {
-  status: { name: 'Status', icon: 'fa-server', desc: 'Server status and uptime', hasTimer: false, enabled: true },
-  network: { name: 'Network', icon: 'fa-network-wired', desc: 'LAN and public IP addresses', hasTimer: true, timerKey: 'ip', defaultInterval: 7200, enabled: true },
-  weather: { name: 'Weather', icon: 'fa-cloud-sun', desc: 'Current weather and forecast', hasTimer: true, timerKey: 'weather', defaultInterval: 1800, enabled: true },
-  cpu: { name: 'CPU', icon: 'fa-microchip', desc: 'CPU usage monitoring', hasTimer: true, timerKey: 'cpu', defaultInterval: 5, enabled: true },
-  ram: { name: 'RAM', icon: 'fa-memory', desc: 'Memory usage monitoring', hasTimer: true, timerKey: 'ram', defaultInterval: 5, enabled: true },
-  disk: { name: 'Disk', icon: 'fa-hdd', desc: 'Disk space monitoring', hasTimer: true, timerKey: 'disk', defaultInterval: 15, enabled: true },
-  links: { name: 'Quick Links', icon: 'fa-link', desc: 'Custom shortcut links', hasTimer: false, enabled: true },
-  utilities: { name: 'Utilities', icon: 'fa-tools', desc: 'System utilities', hasTimer: false, enabled: true },
-  'github-user': { name: 'GitHub User', icon: 'fab fa-github', desc: 'Personal GitHub repositories', hasTimer: true, timerKey: 'github', defaultInterval: 900, enabled: true },
-  'github-org': { name: 'GitHub Org', icon: 'fab fa-github', desc: 'Organization repositories', hasTimer: false, enabled: true }
-};
 
 // Load saved module preferences
 function loadModulePrefs() {
@@ -1296,6 +1254,155 @@ applyModuleVisibility();
       }
     });
   }
+
+  // Render GitHub module list
+  function renderGitHubModuleList() {
+    const list = document.getElementById('githubModuleList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    githubModules.forEach((mod, index) => {
+      const item = document.createElement('div');
+      item.className = 'module-item' + (mod.enabled ? '' : ' disabled');
+      item.innerHTML = `
+        <div class="module-icon"><i class="fab fa-github"></i></div>
+        <div class="module-info">
+          <div class="module-name">${mod.name}</div>
+          <div class="module-desc">${mod.type === 'org' ? 'Organization' : 'User'} • ${mod.url}</div>
+        </div>
+        <div class="module-controls">
+          <button class="btn-small edit-github-btn" data-index="${index}"><i class="fas fa-edit"></i></button>
+          <button class="btn-small delete-github-btn" data-index="${index}"><i class="fas fa-trash"></i></button>
+          <input type="checkbox" ${mod.enabled ? 'checked' : ''} data-index="${index}" title="Enable/disable">
+        </div>
+      `;
+      list.appendChild(item);
+
+      // Enable/disable handler
+      const checkbox = item.querySelector('input[type="checkbox"]');
+      checkbox.addEventListener('change', () => {
+        githubModules[index].enabled = checkbox.checked;
+        item.classList.toggle('disabled', !checkbox.checked);
+        saveGitHubModules();
+        renderGitHubModules();
+      });
+
+      // Edit button
+      const editBtn = item.querySelector('.edit-github-btn');
+      editBtn.addEventListener('click', () => {
+        showGitHubEditDialog(index);
+      });
+
+      // Delete button
+      const deleteBtn = item.querySelector('.delete-github-btn');
+      deleteBtn.addEventListener('click', () => {
+        if (confirm('Delete GitHub module "' + mod.name + '"?')) {
+          githubModules.splice(index, 1);
+          saveGitHubModules();
+          renderGitHubModuleList();
+          renderGitHubModules();
+        }
+      });
+    });
+  }
+
+  // GitHub edit dialog
+  function showGitHubEditDialog(index) {
+    const mod = index >= 0 ? githubModules[index] : { id: 'github-' + Date.now(), type: 'user', name: '', url: '', enabled: true };
+    const isNew = index < 0;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay active';
+    dialog.innerHTML = `
+      <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+          <h2><i class="fab fa-github"></i> ${isNew ? 'Add' : 'Edit'} GitHub Module</h2>
+          <button class="modal-close github-dialog-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-content">
+          <div class="pref-section">
+            <div class="pref-row">
+              <label>GitHub URL</label>
+              <input type="text" id="github-edit-url" placeholder="https://github.com/username" value="${mod.url}">
+            </div>
+            <div class="pref-row">
+              <label>Type</label>
+              <select id="github-edit-type">
+                <option value="user" ${mod.type === 'user' ? 'selected' : ''}>User</option>
+                <option value="org" ${mod.type === 'org' ? 'selected' : ''}>Organization</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+            <button class="btn-small github-dialog-cancel">Cancel</button>
+            <button class="btn-small github-dialog-save" style="background:var(--accent); color:var(--bg);"><i class="fas fa-check"></i> Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const urlInput = dialog.querySelector('#github-edit-url');
+    const typeSelect = dialog.querySelector('#github-edit-type');
+    const closeBtn = dialog.querySelector('.github-dialog-close');
+    const cancelBtn = dialog.querySelector('.github-dialog-cancel');
+    const saveBtn = dialog.querySelector('.github-dialog-save');
+
+    const closeDialog = () => dialog.remove();
+
+    closeBtn.addEventListener('click', closeDialog);
+    cancelBtn.addEventListener('click', closeDialog);
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) closeDialog(); });
+
+    saveBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      if (!url) {
+        alert('Please enter a GitHub URL');
+        return;
+      }
+
+      // Extract name from URL
+      const match = url.match(/github\.com\/([^\/]+)/);
+      if (!match) {
+        alert('Invalid GitHub URL. Please use format: https://github.com/username');
+        return;
+      }
+
+      const name = match[1];
+      const type = typeSelect.value;
+
+      if (isNew) {
+        githubModules.push({
+          id: 'github-' + Date.now(),
+          type: type,
+          name: name,
+          url: 'https://github.com/' + name,
+          enabled: true
+        });
+      } else {
+        githubModules[index].name = name;
+        githubModules[index].type = type;
+        githubModules[index].url = 'https://github.com/' + name;
+      }
+
+      saveGitHubModules();
+      renderGitHubModuleList();
+      renderGitHubModules();
+      refreshGitHub();
+      closeDialog();
+    });
+  }
+
+  // Add GitHub button
+  document.getElementById('addGitHubBtn').addEventListener('click', () => {
+    showGitHubEditDialog(-1);
+  });
+
+  // Render GitHub module list when modal opens
+  const origOpenHandler = openBtn.onclick;
+  openBtn.addEventListener('click', () => {
+    renderGitHubModuleList();
+  });
 })();
 
 // Set up intervals - each module refreshes independently
@@ -1635,6 +1742,9 @@ setInterval(refreshIP, timers.ip.interval);
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .pref-row {
   display: flex;

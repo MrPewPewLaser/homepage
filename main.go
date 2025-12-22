@@ -803,6 +803,28 @@ func main() {
 		writeJSON(w, resp)
 	})
 
+	// Fetch repos for a specific user or org
+	mux.HandleFunc("/api/github/repos", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		name := r.URL.Query().Get("name")
+		repoType := r.URL.Query().Get("type") // "user" or "org"
+
+		if name == "" {
+			writeJSON(w, map[string]string{"error": "Missing 'name' parameter"})
+			return
+		}
+		if repoType == "" {
+			repoType = "user" // default to user
+		}
+
+		repos, err := fetchGitHubReposForName(ctx, name, repoType)
+		if err != nil {
+			writeJSON(w, map[string]any{"error": err.Error(), "repos": []any{}, "total": 0})
+			return
+		}
+		writeJSON(w, repos)
+	})
+
 	mux.HandleFunc("/api/ip", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		resp := struct {
@@ -1505,6 +1527,101 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 	}
 
 	return userRepos, orgRepos, nil
+}
+
+// GitHubReposResponse is the response for the /api/github/repos endpoint
+type GitHubReposResponse struct {
+	Repos      []GitHubRepo `json:"repos"`
+	Total      int          `json:"total"`
+	AccountURL string       `json:"accountUrl"`
+	Error      string       `json:"error,omitempty"`
+}
+
+func fetchGitHubReposForName(ctx context.Context, name, repoType string) (GitHubReposResponse, error) {
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var resp GitHubReposResponse
+	resp.AccountURL = "https://github.com/" + name
+
+	// Determine API URL based on type
+	var reposURL, profileURL string
+	if repoType == "org" {
+		reposURL = "https://api.github.com/orgs/" + name + "/repos?sort=updated&per_page=5"
+		profileURL = "https://api.github.com/orgs/" + name
+	} else {
+		reposURL = "https://api.github.com/users/" + name + "/repos?sort=updated&per_page=5"
+		profileURL = "https://api.github.com/users/" + name
+	}
+
+	// Fetch repos
+	req, _ := http.NewRequestWithContext(cctx, http.MethodGet, reposURL, nil)
+	req.Header.Set("User-Agent", "lan-index/1.0")
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		resp.Error = "Failed to fetch repos: " + err.Error()
+		return resp, nil
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == 403 {
+		rateLimitReset := res.Header.Get("X-RateLimit-Reset")
+		resp.Error = "Rate Limited - available again in " + formatRateLimitResetForUI(rateLimitReset)
+		return resp, nil
+	}
+	if res.StatusCode == 404 {
+		resp.Error = "Not found: " + name
+		return resp, nil
+	}
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		resp.Error = "HTTP error: " + res.Status
+		return resp, nil
+	}
+
+	var repos []struct {
+		Name        string    `json:"name"`
+		FullName    string    `json:"full_name"`
+		Description string    `json:"description"`
+		HTMLURL     string    `json:"html_url"`
+		Stargazers  int       `json:"stargazers_count"`
+		Language    string    `json:"language"`
+		UpdatedAt   time.Time `json:"updated_at"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&repos); err != nil {
+		resp.Error = "Failed to decode repos: " + err.Error()
+		return resp, nil
+	}
+
+	for _, r := range repos {
+		resp.Repos = append(resp.Repos, GitHubRepo{
+			Name:        r.Name,
+			FullName:    r.FullName,
+			Description: r.Description,
+			URL:         r.HTMLURL,
+			Stars:       r.Stargazers,
+			Language:    r.Language,
+			Updated:     r.UpdatedAt.Format("2006-01-02"),
+		})
+	}
+	resp.Total = len(repos)
+
+	// Fetch total count
+	req2, _ := http.NewRequestWithContext(cctx, http.MethodGet, profileURL, nil)
+	req2.Header.Set("User-Agent", "lan-index/1.0")
+	req2.Header.Set("Accept", "application/vnd.github.v3+json")
+	res2, err := http.DefaultClient.Do(req2)
+	if err == nil && res2.StatusCode >= 200 && res2.StatusCode <= 299 {
+		var profile struct {
+			PublicRepos int `json:"public_repos"`
+		}
+		if err := json.NewDecoder(res2.Body).Decode(&profile); err == nil {
+			resp.Total = profile.PublicRepos
+		}
+		res2.Body.Close()
+	}
+
+	return resp, nil
 }
 
 func formatRateLimitResetForUI(resetHeader string) string {

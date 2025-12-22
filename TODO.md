@@ -4,24 +4,26 @@
 - [x] Add customizable module ordering via drag-and-drop
 - [ ] Add collapsible modules
 - [x] Add theme switcher to footer
-- [ ] module editing via UI
+- [x] module editing via UI
 - [ ] Improve mobile responsiveness
-- [ ] split schemes with template selectors and combine the schemes into the theme
+- [x] split schemes with template selectors and combine the schemes into the theme
 
 ## Additional Modules
 - [x] Add system metrics (CPU, RAM, disk usage)
-- [ ] Add bar graph for cpu usage and ram usage
-- [ ] Add popup menu to edit the refresh times for each enabled module, we can disable or enable the module, and change the refresh time
+- [x] Add bar graph for cpu usage
+- [x] Change RAM to be a single line with the usage, total, available, keep the usage percentage in its own line
+- [x] Add bar graph for ram usage
+- [x] Add popup menu to edit the refresh times for each enabled module, we can disable or enable the module, and change the refresh time
 - [ ] Add Docker containers status
 - [ ] Add service health checks
 - [ ] Add recent logs viewer
-- [ ] Add uptime monitoring
+- [x] Add uptime monitoring
 
 ## IP Address Module
 - [x] Add PTR of public IP addresses
 - [x] Add PTR of local IP addresses
 - [ ] Add network interface selection
-- [ ] Add PTR on the second line of the public and local IP addresses
+- [x] Add PTR on the second line of the public and local IP addresses
 - [ ] add status indicator for the public and local IP addresses
 - [ ] add indicator for next hop in both local and public IP addresses
 
@@ -35,9 +37,8 @@
 - [ ] Add repository statistics
 
 ## Weather Enhancements
-- [ ] Add location picker UI
+- [x] Add location picker UI
 - [ ] Add weather API key support
-- [ ] Add weather API key validation
 - [ ] add icons for weather conditions
 - [ ] add weather alerts
 - [ ] add weather historical data
