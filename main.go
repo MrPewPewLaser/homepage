@@ -1689,10 +1689,11 @@ func checkSSLCert(ctx context.Context, host string) (*time.Time, error) {
 		host = host + ":443"
 	}
 
-	dialer := &net.Dialer{Timeout: 5 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", host, &tls.Config{
-		InsecureSkipVerify: true,
-	})
+	dialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: 5 * time.Second},
+		Config:    &tls.Config{InsecureSkipVerify: true},
+	}
+	conn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return nil, err
 	}
@@ -1702,7 +1703,8 @@ func checkSSLCert(ctx context.Context, host string) (*time.Time, error) {
 		}
 	}()
 
-	certs := conn.ConnectionState().PeerCertificates
+	tlsConn := conn.(*tls.Conn)
+	certs := tlsConn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
 		return nil, errors.New("no certificates found")
 	}
@@ -1769,6 +1771,7 @@ func querySNMP(ctx context.Context, host, port, community, oid string) (string, 
 		Version:   gosnmp.Version2c,
 		Timeout:   time.Duration(5) * time.Second,
 		Retries:   1,
+		Context:   ctx,
 	}
 
 	// Connect
