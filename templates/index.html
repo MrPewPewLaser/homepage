@@ -524,6 +524,7 @@ function fmtUptime(sec){
 // Timer management
 const timers = {
   cpu: {interval: 5000, lastUpdate: 0, timer: null}, // 5 seconds
+  cpuid: {interval: 300000, lastUpdate: 0, timer: null}, // 5 minutes
   ram: {interval: 5000, lastUpdate: 0, timer: null}, // 5 seconds
   disk: {interval: 15000, lastUpdate: 0, timer: null}, // 15 seconds
   github: {interval: 900000, lastUpdate: 0, timer: null}, // 15 minutes
@@ -3041,13 +3042,12 @@ setInterval(refreshIP, timers.ip.interval);
 
 // Drag and drop module ordering
 (function() {
-  const grid = document.getElementById('moduleGrid');
-  if (!grid) return;
-
   let draggedElement = null;
+  let grid = null;
 
   // Load saved order from localStorage
   function loadModuleOrder() {
+    if (!grid) return;
     const savedOrder = localStorage.getItem('moduleOrder');
     if (!savedOrder) return;
 
@@ -3078,6 +3078,7 @@ setInterval(refreshIP, timers.ip.interval);
 
   // Save current order to localStorage
   function saveModuleOrder() {
+    if (!grid) return;
     const cards = Array.from(grid.querySelectorAll('.card[data-module]'));
     const order = cards.map(card => card.getAttribute('data-module')).filter(Boolean);
     localStorage.setItem('moduleOrder', JSON.stringify(order));
@@ -3085,13 +3086,24 @@ setInterval(refreshIP, timers.ip.interval);
 
   // Initialize drag and drop
   function initDragAndDrop() {
-    const cards = grid.querySelectorAll('.card[data-module]');
+    if (!grid) {
+      grid = document.getElementById('moduleGrid');
+      if (!grid) return;
+    }
+
+    const cards = Array.from(grid.querySelectorAll('.card[data-module]'));
 
     cards.forEach(card => {
+      // Skip if already has drag listeners (check for a data attribute)
+      if (card.dataset.dragInitialized === 'true') return;
+      card.dataset.dragInitialized = 'true';
+      
       card.addEventListener('dragstart', function(e) {
-        // Don't start drag if clicking on timer circle, links, or buttons
+        // Don't start drag if clicking on timer circle, links, or buttons (but allow drag-handle)
         const target = e.target;
-        if (target.classList.contains('timer-circle') ||
+        if (target.classList.contains('drag-handle') || target.closest('.drag-handle')) {
+          // Allow dragging when clicking on drag-handle
+        } else if (target.classList.contains('timer-circle') ||
             target.closest('.timer-circle') ||
             target.tagName === 'A' ||
             target.closest('a') ||
@@ -3110,16 +3122,15 @@ setInterval(refreshIP, timers.ip.interval);
       card.addEventListener('dragend', function(e) {
         this.style.opacity = '1';
         // Remove drag-over styling from all cards
-        cards.forEach(c => {
+        const allCards = Array.from(grid.querySelectorAll('.card[data-module]'));
+        allCards.forEach(c => {
           c.classList.remove('drag-over');
         });
         draggedElement = null;
       });
 
       card.addEventListener('dragover', function(e) {
-        if (e.preventDefault) {
-          e.preventDefault();
-        }
+        e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
 
         if (draggedElement && this !== draggedElement) {
@@ -3133,9 +3144,8 @@ setInterval(refreshIP, timers.ip.interval);
       });
 
       card.addEventListener('drop', function(e) {
-        if (e.stopPropagation) {
-          e.stopPropagation();
-        }
+        e.preventDefault();
+        e.stopPropagation();
 
         if (draggedElement && this !== draggedElement) {
           // Get the position of the current element
@@ -3175,9 +3185,14 @@ setInterval(refreshIP, timers.ip.interval);
 
   // Load saved order on page load
   window.addEventListener('DOMContentLoaded', function() {
+    grid = document.getElementById('moduleGrid');
+    if (!grid) {
+      console.error('moduleGrid not found');
+      return;
+    }
     loadModuleOrder();
-    // Delay init to ensure all other handlers are set up first
-    setTimeout(initDragAndDrop, 100);
+    // Delay init to ensure all other handlers are set up first and cards are in final order
+    setTimeout(initDragAndDrop, 200);
   });
 })();
 </script>
