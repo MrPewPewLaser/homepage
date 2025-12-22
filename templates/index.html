@@ -3027,10 +3027,10 @@ applyModuleVisibility();
 
   // Refresh all SNMP queries
   window.refreshSnmp = function() {
-    updateTimer('snmp');
     snmpQueries.forEach((query, index) => {
       checkSnmpQuery(query, index);
     });
+    startTimer('snmp');
   };
 
   // Add button
