@@ -49,8 +49,8 @@
     </div>
   </div>
 
-  <div class="main">
-    <div class="grid" id="moduleGrid">
+  <div class="main" id="mainContainer">
+    <div id="moduleGrid">
       <div class="card span-4" data-module="status" draggable="true">
         <h3><i class="fas fa-server"></i> Status<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div class="badge"><span class="pulse"></span><span id="statusText">Online</span></div>
@@ -168,6 +168,7 @@
       </div>
       <div class="modal-tabs">
         <button class="modal-tab active" data-tab="general"><i class="fas fa-sliders-h"></i> General</button>
+        <button class="modal-tab" data-tab="layout"><i class="fas fa-columns"></i> Layout</button>
         <button class="modal-tab" data-tab="modules"><i class="fas fa-th-large"></i> Modules</button>
         <button class="modal-tab" data-tab="quicklinks"><i class="fas fa-link"></i> Quicklinks</button>
         <button class="modal-tab" data-tab="monitoring"><i class="fas fa-heartbeat"></i> Monitoring</button>
@@ -240,6 +241,27 @@
             <div class="pref-row">
               <label>Reset module order</label>
               <button class="btn-small" id="resetOrderBtn"><i class="fas fa-undo"></i> Reset Order</button>
+            </div>
+          </div>
+        </div>
+        <div class="tab-content" id="tab-layout">
+          <div class="pref-section">
+            <h3>Container Width</h3>
+            <div class="pref-row">
+              <label>Max Width</label>
+              <select id="layoutMaxWidth">
+                <option value="60">60%</option>
+                <option value="70">70%</option>
+                <option value="80">80%</option>
+                <option value="90">90%</option>
+              </select>
+            </div>
+          </div>
+          <div class="pref-section">
+            <h3>Row Layout Editor</h3>
+            <div id="layoutEditor"></div>
+            <div style="margin-top: 12px;">
+              <button class="btn-small" id="addRowBtn"><i class="fas fa-plus"></i> Add Row</button>
             </div>
           </div>
         </div>
@@ -1660,6 +1682,13 @@ applyModuleVisibility();
       tabContents.forEach(c => c.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      
+      // Render layout editor when layout tab is opened
+      if (tab.dataset.tab === 'layout' && window.layoutSystem) {
+        setTimeout(() => {
+          window.layoutSystem.renderLayoutEditor();
+        }, 50);
+      }
     });
   });
 
@@ -3076,6 +3105,265 @@ setInterval(refreshWeather, timers.weather.interval);
 setInterval(refreshIP, timers.ip.interval);
 // Note: monitoring interval is set up inside its own module
 
+// Row-based Layout System
+(function() {
+  let layoutConfig = {
+    maxWidth: 80,
+    rows: []
+  };
+
+  // Load layout configuration
+  function loadLayoutConfig() {
+    try {
+      const saved = localStorage.getItem('layoutConfig');
+      if (saved) {
+        layoutConfig = JSON.parse(saved);
+      } else {
+        // Default: create rows from existing modules
+        initializeDefaultLayout();
+      }
+    } catch (e) {
+      console.error('Failed to load layout config:', e);
+      initializeDefaultLayout();
+    }
+  }
+
+  // Initialize default layout from existing modules
+  function initializeDefaultLayout() {
+    const grid = document.getElementById('moduleGrid');
+    if (!grid) return;
+    
+    const cards = Array.from(grid.querySelectorAll('.card[data-module]'));
+    layoutConfig.rows = [];
+    let currentRow = { cols: 3, modules: [] };
+    
+    cards.forEach((card, index) => {
+      const moduleId = card.getAttribute('data-module');
+      if (moduleId) {
+        currentRow.modules.push(moduleId);
+        // Create new row every 3 modules or if it's a span-6 module
+        if (card.classList.contains('span-6') || currentRow.modules.length >= 3) {
+          if (card.classList.contains('span-6')) {
+            currentRow.cols = 2;
+          }
+          layoutConfig.rows.push(currentRow);
+          currentRow = { cols: 3, modules: [] };
+        }
+      }
+    });
+    
+    if (currentRow.modules.length > 0) {
+      layoutConfig.rows.push(currentRow);
+    }
+    
+    if (layoutConfig.rows.length === 0) {
+      layoutConfig.rows = [{ cols: 3, modules: [] }];
+    }
+  }
+
+  // Save layout configuration
+  function saveLayoutConfig() {
+    try {
+      localStorage.setItem('layoutConfig', JSON.stringify(layoutConfig));
+    } catch (e) {
+      console.error('Failed to save layout config:', e);
+    }
+  }
+
+  // Render the grid based on layout config
+  function renderLayout() {
+    const grid = document.getElementById('moduleGrid');
+    if (!grid) return;
+
+    // Collect all existing cards first (preserve them)
+    const allCards = Array.from(grid.querySelectorAll('.card[data-module]'));
+    const cardsMap = new Map();
+    allCards.forEach(card => {
+      const moduleId = card.getAttribute('data-module');
+      if (moduleId) {
+        cardsMap.set(moduleId, card);
+      }
+    });
+
+    // Clear existing structure
+    grid.innerHTML = '';
+    grid.className = 'layout-grid';
+
+    // Create rows
+    layoutConfig.rows.forEach((row, rowIndex) => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'layout-row';
+      rowEl.dataset.rowIndex = rowIndex;
+      rowEl.style.gridTemplateColumns = `repeat(${row.cols}, 1fr)`;
+
+      // Create columns
+      for (let col = 0; col < row.cols; col++) {
+        const colEl = document.createElement('div');
+        colEl.className = 'layout-column';
+        colEl.dataset.rowIndex = rowIndex;
+        colEl.dataset.colIndex = col;
+        
+        // Add empty column indicator or module
+        const moduleId = row.modules[col];
+        if (!moduleId) {
+          colEl.classList.add('empty-column');
+          colEl.innerHTML = '<div class="empty-column-hint">Drop module here</div>';
+        } else {
+          // Find and move module card
+          const card = cardsMap.get(moduleId);
+          if (card) {
+            colEl.appendChild(card);
+            cardsMap.delete(moduleId); // Remove from map so it's not added again
+          } else {
+            // Card not found, mark as empty
+            colEl.classList.add('empty-column');
+            colEl.innerHTML = '<div class="empty-column-hint">Drop module here</div>';
+          }
+        }
+        
+        rowEl.appendChild(colEl);
+      }
+
+      grid.appendChild(rowEl);
+    });
+
+    // Add any remaining cards (not in layout config) to a new row
+    if (cardsMap.size > 0) {
+      const remainingModules = Array.from(cardsMap.keys());
+      const newRow = { cols: 3, modules: [] };
+      remainingModules.forEach((moduleId, idx) => {
+        if (idx < 3) {
+          newRow.modules.push(moduleId);
+        }
+      });
+      while (newRow.modules.length < 3) {
+        newRow.modules.push(null);
+      }
+      layoutConfig.rows.push(newRow);
+      saveLayoutConfig();
+      // Re-render with the new row
+      setTimeout(() => renderLayout(), 0);
+      return;
+    }
+
+    // Apply max width
+    const mainContainer = document.getElementById('mainContainer');
+    if (mainContainer) {
+      mainContainer.style.maxWidth = layoutConfig.maxWidth + '%';
+    }
+  }
+
+  // Render layout editor
+  function renderLayoutEditor() {
+    const editor = document.getElementById('layoutEditor');
+    if (!editor) return;
+
+    editor.innerHTML = '';
+
+    layoutConfig.rows.forEach((row, rowIndex) => {
+      const rowEditor = document.createElement('div');
+      rowEditor.className = 'layout-row-editor';
+      rowEditor.innerHTML = `
+        <div class="layout-row-controls">
+          <span>Row ${rowIndex + 1}</span>
+          <select class="row-cols-select" data-row="${rowIndex}">
+            <option value="1" ${row.cols === 1 ? 'selected' : ''}>1 Column</option>
+            <option value="2" ${row.cols === 2 ? 'selected' : ''}>2 Columns</option>
+            <option value="3" ${row.cols === 3 ? 'selected' : ''}>3 Columns</option>
+          </select>
+          <button class="btn-small remove-row-btn" data-row="${rowIndex}"><i class="fas fa-trash"></i></button>
+        </div>
+      `;
+
+      // Column count change
+      const colsSelect = rowEditor.querySelector('.row-cols-select');
+      colsSelect.addEventListener('change', (e) => {
+        const newCols = parseInt(e.target.value);
+        layoutConfig.rows[rowIndex].cols = newCols;
+        // Adjust modules array if needed
+        if (layoutConfig.rows[rowIndex].modules.length > newCols) {
+          layoutConfig.rows[rowIndex].modules = layoutConfig.rows[rowIndex].modules.slice(0, newCols);
+        } else {
+          while (layoutConfig.rows[rowIndex].modules.length < newCols) {
+            layoutConfig.rows[rowIndex].modules.push(null);
+          }
+        }
+        saveLayoutConfig();
+        renderLayout();
+        initDragAndDrop();
+      });
+
+      // Remove row
+      const removeBtn = rowEditor.querySelector('.remove-row-btn');
+      removeBtn.addEventListener('click', () => {
+        // Move modules to previous row or remove
+        const modules = layoutConfig.rows[rowIndex].modules.filter(m => m);
+        if (modules.length > 0 && rowIndex > 0) {
+          // Try to add to previous row
+          const prevRow = layoutConfig.rows[rowIndex - 1];
+          modules.forEach(m => {
+            if (prevRow.modules.length < prevRow.cols) {
+              prevRow.modules.push(m);
+            }
+          });
+        }
+        layoutConfig.rows.splice(rowIndex, 1);
+        if (layoutConfig.rows.length === 0) {
+          layoutConfig.rows = [{ cols: 3, modules: [] }];
+        }
+        saveLayoutConfig();
+        renderLayout();
+        renderLayoutEditor();
+        initDragAndDrop();
+      });
+
+      editor.appendChild(rowEditor);
+    });
+  }
+
+  // Add row button
+  const addRowBtn = document.getElementById('addRowBtn');
+  if (addRowBtn) {
+    addRowBtn.addEventListener('click', () => {
+      layoutConfig.rows.push({ cols: 3, modules: [] });
+      saveLayoutConfig();
+      renderLayout();
+      renderLayoutEditor();
+      initDragAndDrop();
+    });
+  }
+
+  // Max width setting
+  const maxWidthSelect = document.getElementById('layoutMaxWidth');
+  if (maxWidthSelect) {
+    maxWidthSelect.value = layoutConfig.maxWidth;
+    maxWidthSelect.addEventListener('change', (e) => {
+      layoutConfig.maxWidth = parseInt(e.target.value);
+      saveLayoutConfig();
+      renderLayout();
+    });
+  }
+
+  // Initialize on page load
+  window.addEventListener('DOMContentLoaded', function() {
+    loadLayoutConfig();
+    // Delay to ensure all modules are loaded
+    setTimeout(() => {
+      renderLayout();
+      renderLayoutEditor();
+    }, 100);
+  });
+
+
+  // Expose functions for drag and drop
+  window.layoutSystem = {
+    renderLayout,
+    renderLayoutEditor,
+    saveLayoutConfig,
+    getLayoutConfig: () => layoutConfig
+  };
+})();
+
 // Drag and drop module ordering
 (function() {
   let draggedElement = null;
@@ -3128,14 +3416,15 @@ setInterval(refreshIP, timers.ip.interval);
     }
 
     const cards = Array.from(grid.querySelectorAll('.card[data-module]'));
+    const columns = Array.from(grid.querySelectorAll('.layout-column'));
 
+    // Setup card drag
     cards.forEach(card => {
-      // Skip if already has drag listeners (check for a data attribute)
+      // Skip if already has drag listeners
       if (card.dataset.dragInitialized === 'true') return;
       card.dataset.dragInitialized = 'true';
       
       card.addEventListener('dragstart', function(e) {
-        // Don't start drag if clicking on timer circle, links, or buttons (but allow drag-handle)
         const target = e.target;
         if (target.classList.contains('drag-handle') || target.closest('.drag-handle')) {
           // Allow dragging when clicking on drag-handle
@@ -3157,11 +3446,11 @@ setInterval(refreshIP, timers.ip.interval);
 
       card.addEventListener('dragend', function(e) {
         this.style.opacity = '1';
-        // Remove drag-over styling from all cards
+        // Remove drag-over styling from all cards and columns
         const allCards = Array.from(grid.querySelectorAll('.card[data-module]'));
-        allCards.forEach(c => {
-          c.classList.remove('drag-over');
-        });
+        const allColumns = Array.from(grid.querySelectorAll('.layout-column'));
+        allCards.forEach(c => c.classList.remove('drag-over'));
+        allColumns.forEach(c => c.classList.remove('drag-over'));
         draggedElement = null;
       });
 
@@ -3182,22 +3471,51 @@ setInterval(refreshIP, timers.ip.interval);
       card.addEventListener('drop', function(e) {
         e.preventDefault();
         e.stopPropagation();
+        this.classList.remove('drag-over');
+        return false;
+      });
+    });
 
-        if (draggedElement && this !== draggedElement) {
-          // Get the position of the current element
-          const allCards = Array.from(grid.querySelectorAll('.card[data-module]'));
-          const currentIndex = allCards.indexOf(this);
-          const draggedIndex = allCards.indexOf(draggedElement);
+    // Setup column drop zones
+    columns.forEach(column => {
+      column.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedElement) {
+          this.classList.add('drag-over');
+        }
+      });
 
-          if (draggedIndex < currentIndex) {
-            // Insert after current element
-            grid.insertBefore(draggedElement, this.nextSibling);
-          } else {
-            // Insert before current element
-            grid.insertBefore(draggedElement, this);
+      column.addEventListener('dragleave', function(e) {
+        this.classList.remove('drag-over');
+      });
+
+      column.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (draggedElement) {
+          const rowIndex = parseInt(this.dataset.rowIndex);
+          const colIndex = parseInt(this.dataset.colIndex);
+          const moduleId = draggedElement.getAttribute('data-module');
+
+          // Remove from old position
+          const layoutConfig = window.layoutSystem.getLayoutConfig();
+          layoutConfig.rows.forEach(row => {
+            const idx = row.modules.indexOf(moduleId);
+            if (idx !== -1) {
+              row.modules[idx] = null;
+            }
+          });
+
+          // Add to new position
+          if (layoutConfig.rows[rowIndex]) {
+            layoutConfig.rows[rowIndex].modules[colIndex] = moduleId;
           }
 
-          saveModuleOrder();
+          window.layoutSystem.saveLayoutConfig();
+          window.layoutSystem.renderLayout();
+          setTimeout(() => initDragAndDrop(), 50);
         }
 
         this.classList.remove('drag-over');
@@ -3532,6 +3850,70 @@ setInterval(refreshIP, timers.ip.interval);
 .icon-selector select:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* Row-based Layout System */
+.layout-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.layout-row {
+  display: grid;
+  gap: 16px;
+  min-height: 100px;
+}
+.layout-column {
+  min-height: 100px;
+  position: relative;
+}
+.layout-column.empty-column {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  background: var(--panel2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.layout-column.empty-column:hover {
+  border-color: var(--accent);
+  background: var(--panel);
+}
+.layout-column.drag-over {
+  border-color: var(--accent) !important;
+  background: var(--panel) !important;
+}
+.empty-column-hint {
+  color: var(--muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+.layout-column:not(.empty-column) .card {
+  width: 100%;
+  height: 100%;
+}
+
+/* Layout Editor */
+.layout-row-editor {
+  padding: 12px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.layout-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.layout-row-controls span {
+  min-width: 60px;
+  font-weight: 500;
+}
+.layout-row-controls select {
+  flex: 1;
+  max-width: 150px;
 }
 
 /* Layout buttons */
