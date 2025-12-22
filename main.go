@@ -190,8 +190,6 @@ type GitHubRepo struct {
 	Updated     string `json:"updated"`
 }
 
-var startedAt = time.Now()
-
 type GitHubCache struct {
 	mu        sync.RWMutex
 	userRepos GitHubUserRepos
@@ -201,8 +199,6 @@ type GitHubCache struct {
 }
 
 var githubCache = &GitHubCache{}
-
-const githubCacheMaxAge = 15 * time.Minute // In-memory cache valid for 15 minutes
 
 // findBlockEnd finds the end of a CSS block (the matching closing brace)
 func findBlockEnd(content string, startPos int) int {
@@ -221,9 +217,10 @@ func findBlockEnd(content string, startPos int) int {
 	depth := 1
 	pos := openBrace + 1
 	for pos < len(content) && depth > 0 {
-		if content[pos] == '{' {
+		switch content[pos] {
+		case '{':
 			depth++
-		} else if content[pos] == '}' {
+		case '}':
 			depth--
 		}
 		pos++
@@ -479,9 +476,6 @@ func init() {
 		templatesList = append(templatesList, templateName)
 		log.Printf("Loaded template: %s with %d schemes", templateName, len(schemes))
 	}
-	if err != nil {
-		log.Fatalf("Failed to load themes: %v", err)
-	}
 
 	// Sort templates (nordic first, then alphabetical)
 	templatesList = sortTemplates(templatesList)
@@ -497,31 +491,6 @@ func sortTemplates(templates []string) []string {
 			sorted = append(sorted, template)
 		} else {
 			others = append(others, template)
-		}
-	}
-
-	// Simple alphabetical sort for others
-	for i := 0; i < len(others); i++ {
-		for j := i + 1; j < len(others); j++ {
-			if others[i] > others[j] {
-				others[i], others[j] = others[j], others[i]
-			}
-		}
-	}
-
-	return append(sorted, others...)
-}
-
-func sortThemes(themes []string) []string {
-	// Put nordic-blue-dark first if it exists, then sort the rest alphabetically
-	var sorted []string
-	var others []string
-
-	for _, theme := range themes {
-		if theme == "nordic-blue-dark" {
-			sorted = append(sorted, theme)
-		} else {
-			others = append(others, theme)
 		}
 	}
 
@@ -758,8 +727,7 @@ func main() {
 
 	mux.HandleFunc("/api/system", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		resp := SystemMetrics{}
-		resp = getSystemMetrics(ctx)
+		resp := getSystemMetrics(ctx)
 		writeJSON(w, resp)
 	})
 
@@ -1108,7 +1076,9 @@ func main() {
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			log.Printf("Error writing healthz response: %v", err)
+		}
 	})
 
 	srv := &http.Server{
@@ -1224,11 +1194,7 @@ func reverseDNS(ip string, dnsServer string) string {
 	// Extract PTR record
 	for _, ans := range r.Answer {
 		if ptr, ok := ans.(*dns.PTR); ok {
-			name := ptr.Ptr
-			// Remove trailing dot if present
-			if strings.HasSuffix(name, ".") {
-				name = name[:len(name)-1]
-			}
+			name := strings.TrimSuffix(ptr.Ptr, ".")
 			return name
 		}
 	}
@@ -1377,7 +1343,11 @@ func openMeteoSummary(ctx context.Context, lat, lon string) (WeatherData, error)
 	if err != nil {
 		return WeatherData{}, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing weather response body: %v", closeErr)
+		}
+	}()
 	if res.StatusCode < 200 || res.StatusCode > 299 {
 		return WeatherData{}, errors.New("weather http status " + res.Status)
 	}
@@ -1483,13 +1453,20 @@ type GeoLocation struct {
 func geocodeCity(ctx context.Context, query string) ([]GeoLocation, error) {
 	// Use Open-Meteo's geocoding API (free, no key required)
 	u := "https://geocoding-api.open-meteo.com/v1/search?name=" + url.QueryEscape(query) + "&count=5&language=en&format=json"
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("User-Agent", "lan-index/1.0")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing geocode response body: %v", closeErr)
+		}
+	}()
 	if res.StatusCode < 200 || res.StatusCode > 299 {
 		return nil, errors.New("geocode http status " + res.Status)
 	}
@@ -1553,13 +1530,20 @@ func fetchFavicon(ctx context.Context, origin string) ([]byte, string, error) {
 
 	// First, try to parse the HTML to find the favicon link
 	log.Printf("[favicon] Fetching HTML from %s", origin)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, origin, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, origin, nil)
+	if err != nil {
+		return nil, "", err
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; lan-index/1.0)")
 	res, err := client.Do(req)
 	if err != nil {
 		log.Printf("[favicon] Error fetching HTML: %v", err)
 	} else if res.StatusCode >= 200 && res.StatusCode < 300 {
-		defer res.Body.Close()
+		defer func() {
+			if closeErr := res.Body.Close(); closeErr != nil {
+				log.Printf("Error closing favicon response body: %v", closeErr)
+			}
+		}()
 		log.Printf("[favicon] Got HTML response, status: %d", res.StatusCode)
 		body, err := io.ReadAll(io.LimitReader(res.Body, 100*1024)) // Limit to 100KB
 		if err == nil {
@@ -1582,7 +1566,9 @@ func fetchFavicon(ctx context.Context, origin string) ([]byte, string, error) {
 		}
 	} else if res != nil {
 		log.Printf("[favicon] HTML response status: %d", res.StatusCode)
-		res.Body.Close()
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing favicon HTML response body: %v", closeErr)
+		}
 	}
 
 	// Try common favicon paths
@@ -1671,7 +1657,11 @@ func checkHTTP(ctx context.Context, targetURL string) (*HTTPCheckResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing DNS over HTTPS response body: %v", closeErr)
+		}
+	}()
 
 	result.Latency = time.Since(start).Milliseconds()
 
@@ -1706,7 +1696,11 @@ func checkSSLCert(ctx context.Context, host string) (*time.Time, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Printf("Error closing DNS connection: %v", closeErr)
+		}
+	}()
 
 	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
@@ -1732,7 +1726,11 @@ func checkPort(ctx context.Context, host, port string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Printf("Error closing DNS connection: %v", closeErr)
+		}
+	}()
 
 	latency := time.Since(start).Milliseconds()
 	return latency, nil
@@ -1778,7 +1776,11 @@ func querySNMP(ctx context.Context, host, port, community, oid string) (string, 
 	if err != nil {
 		return "", errors.New("SNMP connect failed: " + err.Error())
 	}
-	defer snmp.Conn.Close()
+	defer func() {
+		if closeErr := snmp.Conn.Close(); closeErr != nil {
+			log.Printf("Error closing SNMP connection: %v", closeErr)
+		}
+	}()
 
 	// Perform GET request
 	result, err := snmp.Get([]string{oid})
@@ -1817,14 +1819,21 @@ func parsePort(portStr string) uint16 {
 }
 
 func downloadFavicon(ctx context.Context, client *http.Client, faviconURL string) ([]byte, string, error) {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, faviconURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, faviconURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; lan-index/1.0)")
 
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, "", err
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing response body: %v", closeErr)
+		}
+	}()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil, "", errors.New("favicon not found: " + res.Status)
@@ -1974,11 +1983,15 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 			resetTime := formatRateLimitReset(rateLimitReset)
 			log.Printf("GitHub API rate limit (user repos): Remaining=%s, Resets at %s", rateLimitRemaining, resetTime)
 			userRepos.Error = "Rate Limited (403) will be available again in " + formatRateLimitResetForUI(rateLimitReset)
-			res.Body.Close()
+			if closeErr := res.Body.Close(); closeErr != nil {
+				log.Printf("Error closing GitHub rate limit response body: %v", closeErr)
+			}
 		} else if res.StatusCode < 200 || res.StatusCode > 299 {
 			log.Printf("GitHub API error (user repos): HTTP %d - %s", res.StatusCode, res.Status)
 			userRepos.Error = "Failed to fetch user repos: HTTP " + res.Status
-			res.Body.Close()
+			if closeErr := res.Body.Close(); closeErr != nil {
+				log.Printf("Error closing GitHub error response body: %v", closeErr)
+			}
 		} else {
 			var repos []struct {
 				Name        string    `json:"name"`
@@ -2025,12 +2038,16 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 						// Don't set error here, we already have repos, just use count as fallback
 						// Use repos count as fallback
 						userRepos.Total = len(userRepos.Repos)
-						res.Body.Close()
+						if closeErr := res.Body.Close(); closeErr != nil {
+							log.Printf("Error closing GitHub rate limit response body: %v", closeErr)
+						}
 					} else if res.StatusCode < 200 || res.StatusCode > 299 {
 						log.Printf("GitHub API error (user total count): HTTP %d - %s", res.StatusCode, res.Status)
 						// Use repos count as fallback
 						userRepos.Total = len(userRepos.Repos)
-						res.Body.Close()
+						if closeErr := res.Body.Close(); closeErr != nil {
+							log.Printf("Error closing GitHub error response body: %v", closeErr)
+						}
 					} else {
 						var user struct {
 							PublicRepos int `json:"public_repos"`
@@ -2042,11 +2059,15 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 							userRepos.Total = user.PublicRepos
 							log.Printf("GitHub: user total repos = %d", user.PublicRepos)
 						}
-						res.Body.Close()
+						if closeErr := res.Body.Close(); closeErr != nil {
+							log.Printf("Error closing GitHub user profile response body: %v", closeErr)
+						}
 					}
 				}
 			}
-			res.Body.Close()
+			if closeErr := res.Body.Close(); closeErr != nil {
+				log.Printf("Error closing GitHub user repos response body: %v", closeErr)
+			}
 		}
 	}
 
@@ -2066,11 +2087,15 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 			resetTime := formatRateLimitReset(rateLimitReset)
 			log.Printf("GitHub API rate limit (org repos): Remaining=%s, Resets at %s", rateLimitRemaining, resetTime)
 			orgRepos.Error = "Rate Limited (403) will be available again in " + formatRateLimitResetForUI(rateLimitReset)
-			res.Body.Close()
+			if closeErr := res.Body.Close(); closeErr != nil {
+				log.Printf("Error closing GitHub org rate limit response body: %v", closeErr)
+			}
 		} else if res.StatusCode < 200 || res.StatusCode > 299 {
 			log.Printf("GitHub API error (org repos): HTTP %d - %s", res.StatusCode, res.Status)
 			orgRepos.Error = "Failed to fetch org repos: HTTP " + res.Status
-			res.Body.Close()
+			if closeErr := res.Body.Close(); closeErr != nil {
+				log.Printf("Error closing GitHub org error response body: %v", closeErr)
+			}
 		} else {
 			var repos []struct {
 				Name        string    `json:"name"`
@@ -2118,12 +2143,16 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 						log.Printf("GitHub API rate limit (org total count): Remaining=%s, Resets at %s", rateLimitRemaining, resetTime)
 						// Don't set error here, we already have repos, just use count as fallback
 						orgRepos.Total = len(orgRepos.Repos)
-						res.Body.Close()
+						if closeErr := res.Body.Close(); closeErr != nil {
+							log.Printf("Error closing GitHub org rate limit response body: %v", closeErr)
+						}
 					} else if res.StatusCode < 200 || res.StatusCode > 299 {
 						log.Printf("GitHub API error (org total count): HTTP %d - %s", res.StatusCode, res.Status)
 						// Use repos count as fallback
 						orgRepos.Total = len(orgRepos.Repos)
-						res.Body.Close()
+						if closeErr := res.Body.Close(); closeErr != nil {
+							log.Printf("Error closing GitHub org error response body: %v", closeErr)
+						}
 					} else {
 						var org struct {
 							PublicRepos int `json:"public_repos"`
@@ -2135,11 +2164,15 @@ func fetchGitHubRepos(ctx context.Context) (GitHubUserRepos, GitHubOrgRepos, err
 							orgRepos.Total = org.PublicRepos
 							log.Printf("GitHub: org total repos = %d", org.PublicRepos)
 						}
-						res.Body.Close()
+						if closeErr := res.Body.Close(); closeErr != nil {
+							log.Printf("Error closing GitHub org profile response body: %v", closeErr)
+						}
 					}
 				}
 			}
-			res.Body.Close()
+			if closeErr := res.Body.Close(); closeErr != nil {
+				log.Printf("Error closing GitHub org repos response body: %v", closeErr)
+			}
 		}
 	}
 
@@ -2212,7 +2245,11 @@ func fetchGitHubReposForName(ctx context.Context, name, repoType, token string) 
 		resp.Error = "Failed to fetch repos: " + err.Error()
 		return resp, nil
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing response body: %v", closeErr)
+		}
+	}()
 
 	if res.StatusCode == 403 {
 		rateLimitReset := res.Header.Get("X-RateLimit-Reset")
@@ -2270,7 +2307,9 @@ func fetchGitHubReposForName(ctx context.Context, name, repoType, token string) 
 		if err := json.NewDecoder(res2.Body).Decode(&profile); err == nil {
 			resp.Total = profile.PublicRepos
 		}
-		res2.Body.Close()
+		if closeErr := res2.Body.Close(); closeErr != nil {
+			log.Printf("Error closing GitHub profile response body: %v", closeErr)
+		}
 	}
 
 	return resp, nil
@@ -2300,12 +2339,13 @@ func fetchGitHubPRs(ctx context.Context, name, accountType, token string) (GitHu
 	var resp GitHubPRsResponse
 
 	var searchQuery string
-	if accountType == "repo" {
+	switch accountType {
+	case "repo":
 		// For a specific repo: name is "user/repo"
 		searchQuery = "repo:" + name + " is:pr is:open"
-	} else if accountType == "org" {
+	case "org":
 		searchQuery = "org:" + name + " is:pr is:open"
-	} else {
+	default:
 		searchQuery = "author:" + name + " is:pr is:open"
 	}
 
@@ -2323,7 +2363,11 @@ func fetchGitHubPRs(ctx context.Context, name, accountType, token string) (GitHu
 		resp.Error = "Failed to fetch PRs: " + err.Error()
 		return resp, nil
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing response body: %v", closeErr)
+		}
+	}()
 
 	if res.StatusCode == 403 {
 		rateLimitReset := res.Header.Get("X-RateLimit-Reset")
@@ -2438,7 +2482,11 @@ func fetchGitHubCommits(ctx context.Context, name, accountType, token string) (G
 		resp.Error = "Failed to fetch commits: " + err.Error()
 		return resp, nil
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing response body: %v", closeErr)
+		}
+	}()
 
 	if res.StatusCode == 403 {
 		rateLimitReset := res.Header.Get("X-RateLimit-Reset")
@@ -2566,12 +2614,13 @@ func fetchGitHubIssues(ctx context.Context, name, accountType, token string) (Gi
 	var resp GitHubIssuesResponse
 
 	var searchQuery string
-	if accountType == "repo" {
+	switch accountType {
+	case "repo":
 		// For a specific repo: name is "user/repo"
 		searchQuery = "repo:" + name + " is:issue is:open"
-	} else if accountType == "org" {
+	case "org":
 		searchQuery = "org:" + name + " is:issue is:open"
-	} else {
+	default:
 		searchQuery = "author:" + name + " is:issue is:open"
 	}
 
@@ -2589,7 +2638,11 @@ func fetchGitHubIssues(ctx context.Context, name, accountType, token string) (Gi
 		resp.Error = "Failed to fetch issues: " + err.Error()
 		return resp, nil
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing response body: %v", closeErr)
+		}
+	}()
 
 	if res.StatusCode == 403 {
 		rateLimitReset := res.Header.Get("X-RateLimit-Reset")
@@ -2685,7 +2738,11 @@ func fetchGitHubStats(ctx context.Context, name, token string) (GitHubStatsRespo
 		resp.Error = "Failed to fetch stats: " + err.Error()
 		return resp, nil
 	}
-	defer res.Body.Close()
+	defer func() {
+		if closeErr := res.Body.Close(); closeErr != nil {
+			log.Printf("Error closing response body: %v", closeErr)
+		}
+	}()
 
 	if res.StatusCode == 403 {
 		rateLimitReset := res.Header.Get("X-RateLimit-Reset")
