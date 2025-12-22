@@ -1536,8 +1536,23 @@ function renderGitHubModules() {
   if (!container) return;
   container.innerHTML = '';
 
+  // Get layout config to check which modules are already in the layout
+  const layoutConfig = window.layoutSystem ? window.layoutSystem.getLayoutConfig() : null;
+  const modulesInLayout = new Set();
+  if (layoutConfig) {
+    layoutConfig.rows.forEach(row => {
+      row.modules.forEach(moduleId => {
+        if (moduleId && moduleId.startsWith('github-')) {
+          modulesInLayout.add(moduleId);
+        }
+      });
+    });
+  }
+
   githubModules.forEach((mod, index) => {
     if (!mod.enabled) return;
+    // Skip modules that are already in the layout grid
+    if (modulesInLayout.has(mod.id)) return;
 
     // Handle legacy modules without displayType
     const displayType = mod.displayType || 'repos';
@@ -3180,8 +3195,11 @@ setInterval(refreshIP, timers.ip.interval);
     const grid = document.getElementById('moduleGrid');
     if (!grid) return;
 
-    // Collect all existing cards first (preserve them)
-    const allCards = Array.from(grid.querySelectorAll('.card[data-module]'));
+    // Collect all existing cards first (preserve them) from both moduleGrid and githubModulesContainer
+    const gridCards = Array.from(grid.querySelectorAll('.card[data-module]'));
+    const githubContainer = document.getElementById('githubModulesContainer');
+    const githubCards = githubContainer ? Array.from(githubContainer.querySelectorAll('.card[data-module]')) : [];
+    const allCards = [...gridCards, ...githubCards];
     const cardsMap = new Map();
     allCards.forEach(card => {
       const moduleId = card.getAttribute('data-module');
@@ -3536,58 +3554,58 @@ setInterval(refreshIP, timers.ip.interval);
           const draggedPos = findCardColumn(draggedElement);
           const targetPos = findCardColumn(this);
 
+          const layoutConfig = window.layoutSystem.getLayoutConfig();
+
           if (draggedPos && targetPos) {
             // Both cards are in layout columns - swap them
-            const layoutConfig = window.layoutSystem.getLayoutConfig();
-
-            // Swap in layout config
             if (layoutConfig.rows[draggedPos.rowIndex] && layoutConfig.rows[targetPos.rowIndex]) {
               layoutConfig.rows[draggedPos.rowIndex].modules[draggedPos.colIndex] = targetModuleId;
               layoutConfig.rows[targetPos.rowIndex].modules[targetPos.colIndex] = draggedModuleId;
 
               window.layoutSystem.saveLayoutConfig();
               window.layoutSystem.renderLayout();
-              setTimeout(() => initDragAndDrop(), 50);
-            }
-          } else if (draggedPos && !targetPos) {
-            // Dragged card is in layout, target is not (e.g., GitHub module in separate container)
-            // Move dragged card to target's position (if target is in a column)
-            const targetCol = findCardColumn(this);
-            if (targetCol) {
-              const layoutConfig = window.layoutSystem.getLayoutConfig();
-              // Remove from old position
-              layoutConfig.rows.forEach(row => {
-                const idx = row.modules.indexOf(draggedModuleId);
-                if (idx !== -1) {
-                  row.modules[idx] = null;
-                }
-              });
-              // Add to target position
-              if (layoutConfig.rows[targetCol.rowIndex]) {
-                const oldModuleId = layoutConfig.rows[targetCol.rowIndex].modules[targetCol.colIndex];
-                layoutConfig.rows[targetCol.rowIndex].modules[targetCol.colIndex] = draggedModuleId;
-                // If target was in layout, move it to dragged position
-                if (oldModuleId && oldModuleId !== draggedModuleId) {
-                  if (layoutConfig.rows[draggedPos.rowIndex]) {
-                    layoutConfig.rows[draggedPos.rowIndex].modules[draggedPos.colIndex] = oldModuleId;
-                  }
-                }
-              }
-              window.layoutSystem.saveLayoutConfig();
-              window.layoutSystem.renderLayout();
-              setTimeout(() => initDragAndDrop(), 50);
+              setTimeout(() => window.initDragAndDrop(), 50);
             }
           } else if (!draggedPos && targetPos) {
-            // Dragged card is not in layout (e.g., GitHub module), target is in layout
-            // This case is handled by column drop handler, but we can also handle it here
-            const layoutConfig = window.layoutSystem.getLayoutConfig();
-            // Remove target from layout
+            // Dragged card is not in layout (e.g., GitHub module in githubModulesContainer), target is in layout
+            // Swap: move dragged module to target's position, move target module to dragged position (or remove if GitHub)
             if (layoutConfig.rows[targetPos.rowIndex]) {
+              const oldModuleId = layoutConfig.rows[targetPos.rowIndex].modules[targetPos.colIndex];
               layoutConfig.rows[targetPos.rowIndex].modules[targetPos.colIndex] = draggedModuleId;
+
+              // If target was a GitHub module, it goes back to githubModulesContainer (handled by renderGitHubModules)
+              // If target was a regular module, we need to find it a new spot or leave it null
+              // For now, just swap - the target module will be handled by renderLayout finding remaining cards
+
+              window.layoutSystem.saveLayoutConfig();
+              window.layoutSystem.renderLayout();
+              setTimeout(() => window.initDragAndDrop(), 50);
             }
-            window.layoutSystem.saveLayoutConfig();
-            window.layoutSystem.renderLayout();
-            setTimeout(() => initDragAndDrop(), 50);
+          } else if (draggedPos && !targetPos) {
+            // Dragged card is in layout, target is not (e.g., GitHub module in githubModulesContainer)
+            // Swap: move dragged module out of layout, move target module to dragged position
+            if (layoutConfig.rows[draggedPos.rowIndex]) {
+              layoutConfig.rows[draggedPos.rowIndex].modules[draggedPos.colIndex] = targetModuleId;
+
+              // Remove dragged module from any other positions in layout
+              layoutConfig.rows.forEach((row, rowIdx) => {
+                if (rowIdx !== draggedPos.rowIndex) {
+                  const idx = row.modules.indexOf(draggedModuleId);
+                  if (idx !== -1) {
+                    row.modules[idx] = null;
+                  }
+                }
+              });
+
+              window.layoutSystem.saveLayoutConfig();
+              window.layoutSystem.renderLayout();
+              setTimeout(() => window.initDragAndDrop(), 50);
+            }
+          } else if (!draggedPos && !targetPos) {
+            // Both cards are not in layout (both GitHub modules in githubModulesContainer)
+            // For now, just re-render GitHub modules to maintain order
+            // In the future, we could implement reordering within the container
+            renderGitHubModules();
           }
         }
 
@@ -3648,7 +3666,7 @@ setInterval(refreshIP, timers.ip.interval);
 
           window.layoutSystem.saveLayoutConfig();
           window.layoutSystem.renderLayout();
-          setTimeout(() => initDragAndDrop(), 50);
+          setTimeout(() => window.initDragAndDrop(), 50);
         }
 
         this.classList.remove('drag-over');
