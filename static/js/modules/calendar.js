@@ -108,23 +108,37 @@ function renderCalendar() {
   }
 
   // First day of month and number of days
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 = Sunday, 1 = Monday, etc.
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
 
-  let html = '<div class="cal-header">';
+  // Adjust day names based on startDay setting
+  const startDay = calendarSettings.startDay || 0; // 0 = Sunday, 1 = Monday
   const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-  dayNames.forEach((d, idx) => {
-    const isWeekend = (idx === 0 || idx === 6);
+  const reorderedDayNames = [];
+  for (let i = 0; i < 7; i++) {
+    reorderedDayNames.push(dayNames[(startDay + i) % 7]);
+  }
+
+  let html = '<div class="cal-header">';
+  reorderedDayNames.forEach((d, idx) => {
+    const dayIndex = (startDay + idx) % 7;
+    const isWeekend = (dayIndex === 0 || dayIndex === 6);
     const dimClass = (isWeekend && calendarSettings.dimWeekends) ? ' dim' : '';
     html += `<div class="cal-day-name${dimClass}">${d}</div>`;
   });
   html += '</div><div class="cal-days">';
 
+  // Calculate offset for first day of month based on startDay
+  // If startDay is 1 (Monday), we need to adjust firstDayOfMonth
+  let offset = firstDayOfMonth - startDay;
+  if (offset < 0) offset += 7;
+
   // Empty cells for days before first of month
-  for (let i = 0; i < firstDay; i++) {
-    const isWeekend = (i === 0 || i === 6);
+  for (let i = 0; i < offset; i++) {
+    const dayIndex = (startDay + i) % 7;
+    const isWeekend = (dayIndex === 0 || dayIndex === 6);
     const dimClass = (isWeekend && calendarSettings.dimWeekends) ? ' dim' : '';
     html += `<div class="cal-day empty${dimClass}"></div>`;
   }

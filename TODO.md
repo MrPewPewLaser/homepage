@@ -66,7 +66,7 @@
 ## Data Persistence
 - [x] Add settings storage (localStorage or database)
 - [x] Add user preferences saving
-- [ ] Add configuration export/import
+- [x] Add configuration export/import
 
 ## Additional API Endpoints
 - [x] Add api to monitor services
