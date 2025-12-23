@@ -28,6 +28,8 @@ import (
 	"github.com/earentir/cpuid"
 	"github.com/earentir/gosmbios"
 	"github.com/earentir/gosmbios/types/type0"
+	"github.com/earentir/gosmbios/types/type1"
+	"github.com/earentir/gosmbios/types/type2"
 	"github.com/earentir/gosmbios/types/type17"
 	"github.com/gosnmp/gosnmp"
 	"github.com/miekg/dns"
@@ -260,6 +262,32 @@ type SMBIOSFirmwareInfo struct {
 	Version     string `json:"version,omitempty"`
 	ReleaseDate string `json:"releaseDate,omitempty"`
 	Error       string `json:"error,omitempty"`
+}
+
+// SMBIOSSystemInfo contains SMBIOS System information.
+type SMBIOSSystemInfo struct {
+	Manufacturer string `json:"manufacturer,omitempty"`
+	ProductName  string `json:"productName,omitempty"`
+	Version      string `json:"version,omitempty"`
+	SerialNumber string `json:"serialNumber,omitempty"`
+	UUID         string `json:"uuid,omitempty"`
+	WakeUpType   string `json:"wakeUpType,omitempty"`
+	SKUNumber    string `json:"skuNumber,omitempty"`
+	Family       string `json:"family,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
+// SMBIOSBaseboardInfo contains SMBIOS Baseboard information.
+type SMBIOSBaseboardInfo struct {
+	Manufacturer      string   `json:"manufacturer,omitempty"`
+	Product           string   `json:"product,omitempty"`
+	Version           string   `json:"version,omitempty"`
+	SerialNumber      string   `json:"serialNumber,omitempty"`
+	AssetTag          string   `json:"assetTag,omitempty"`
+	LocationInChassis string   `json:"locationInChassis,omitempty"`
+	BoardType         string   `json:"boardType,omitempty"`
+	FeatureFlags      []string `json:"featureFlags,omitempty"`
+	Error             string   `json:"error,omitempty"`
 }
 
 // GitHubUserRepos contains GitHub user repository information.
@@ -904,6 +932,18 @@ func main() {
 	mux.HandleFunc("/api/firmware", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		resp := getSMBIOSFirmwareInfo(ctx)
+		writeJSON(w, resp)
+	})
+
+	mux.HandleFunc("/api/systeminfo", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		resp := getSMBIOSSystemInfo(ctx)
+		writeJSON(w, resp)
+	})
+
+	mux.HandleFunc("/api/baseboard", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		resp := getSMBIOSBaseboardInfo(ctx)
 		writeJSON(w, resp)
 	})
 
@@ -3507,6 +3547,124 @@ func getSMBIOSFirmwareInfo(_ context.Context) SMBIOSFirmwareInfo {
 	// Extract BIOS release date
 	if biosInfo.ReleaseDate != "" {
 		info.ReleaseDate = biosInfo.ReleaseDate
+	}
+
+	return info
+}
+
+func getSMBIOSSystemInfo(_ context.Context) SMBIOSSystemInfo {
+	var info SMBIOSSystemInfo
+
+	// Read SMBIOS data
+	sm, err := gosmbios.Read()
+	if err != nil {
+		info.Error = "Failed to read SMBIOS: " + err.Error()
+		return info
+	}
+
+	// Get System information (Type 1)
+	systemInfo, err := type1.Get(sm)
+	if err != nil {
+		info.Error = "Failed to get System information: " + err.Error()
+		return info
+	}
+
+	// Extract System information
+	if systemInfo.Manufacturer != "" {
+		info.Manufacturer = systemInfo.Manufacturer
+	}
+
+	if systemInfo.ProductName != "" {
+		info.ProductName = systemInfo.ProductName
+	}
+
+	if systemInfo.Version != "" {
+		info.Version = systemInfo.Version
+	}
+
+	if systemInfo.SerialNumber != "" {
+		info.SerialNumber = systemInfo.SerialNumber
+	}
+
+	// UUID
+	if systemInfo.UUID != (type1.UUID{}) {
+		info.UUID = fmt.Sprintf("%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X%02X%02X",
+			systemInfo.UUID[0], systemInfo.UUID[1], systemInfo.UUID[2], systemInfo.UUID[3],
+			systemInfo.UUID[4], systemInfo.UUID[5],
+			systemInfo.UUID[6], systemInfo.UUID[7],
+			systemInfo.UUID[8], systemInfo.UUID[9],
+			systemInfo.UUID[10], systemInfo.UUID[11], systemInfo.UUID[12], systemInfo.UUID[13], systemInfo.UUID[14], systemInfo.UUID[15])
+	}
+
+	// Wake Up Type
+	if systemInfo.WakeUpType > 0 {
+		info.WakeUpType = systemInfo.WakeUpType.String()
+	}
+
+	if systemInfo.SKUNumber != "" {
+		info.SKUNumber = systemInfo.SKUNumber
+	}
+
+	if systemInfo.Family != "" {
+		info.Family = systemInfo.Family
+	}
+
+	return info
+}
+
+func getSMBIOSBaseboardInfo(_ context.Context) SMBIOSBaseboardInfo {
+	var info SMBIOSBaseboardInfo
+
+	// Read SMBIOS data
+	sm, err := gosmbios.Read()
+	if err != nil {
+		info.Error = "Failed to read SMBIOS: " + err.Error()
+		return info
+	}
+
+	// Get Baseboard information (Type 2)
+	baseboardInfo, err := type2.Get(sm)
+	if err != nil {
+		info.Error = "Failed to get Baseboard information: " + err.Error()
+		return info
+	}
+
+	// Extract Baseboard information
+	if baseboardInfo.Manufacturer != "" {
+		info.Manufacturer = baseboardInfo.Manufacturer
+	}
+
+	if baseboardInfo.Product != "" {
+		info.Product = baseboardInfo.Product
+	}
+
+	if baseboardInfo.Version != "" {
+		info.Version = baseboardInfo.Version
+	}
+
+	if baseboardInfo.SerialNumber != "" {
+		info.SerialNumber = baseboardInfo.SerialNumber
+	}
+
+	if baseboardInfo.AssetTag != "" {
+		info.AssetTag = baseboardInfo.AssetTag
+	}
+
+	if baseboardInfo.LocationInChassis != "" {
+		info.LocationInChassis = baseboardInfo.LocationInChassis
+	}
+
+	if baseboardInfo.BoardType > 0 {
+		info.BoardType = baseboardInfo.BoardType.String()
+	}
+
+	// Feature Flags
+	var features []string
+	if baseboardInfo.FeatureFlags.IsHostingBoard() {
+		features = append(features, "Hosting Board")
+	}
+	if len(features) > 0 {
+		info.FeatureFlags = features
 	}
 
 	return info

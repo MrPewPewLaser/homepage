@@ -302,6 +302,136 @@ async function refreshFirmwareInfo() {
   }
 }
 
+async function refreshSystemInfo() {
+  try {
+    const res = await fetch("/api/systeminfo", {cache:"no-store"});
+    const j = await res.json();
+
+    const el = document.getElementById("systeminfoContent");
+    if (!el) return;
+
+    if (j.error) {
+      el.innerHTML = `<div class="small" style="color:var(--muted);">${j.error}</div>`;
+      return;
+    }
+
+    let html = '';
+
+    // Manufacturer
+    if (j.manufacturer) {
+      html += `<div class="kv"><div class="k">Manufacturer</div><div class="v mono">${j.manufacturer}</div></div>`;
+    }
+
+    // Product Name
+    if (j.productName) {
+      html += `<div class="kv"><div class="k">Product</div><div class="v mono">${j.productName}</div></div>`;
+    }
+
+    // Version
+    if (j.version) {
+      html += `<div class="kv"><div class="k">Version</div><div class="v mono">${j.version}</div></div>`;
+    }
+
+    // Serial Number
+    if (j.serialNumber) {
+      html += `<div class="kv"><div class="k">Serial Number</div><div class="v mono">${j.serialNumber}</div></div>`;
+    }
+
+    // UUID
+    if (j.uuid) {
+      html += `<div class="kv"><div class="k">UUID</div><div class="v mono">${j.uuid}</div></div>`;
+    }
+
+    // Wake Up Type
+    if (j.wakeUpType) {
+      html += `<div class="kv"><div class="k">Wake Up Type</div><div class="v mono">${j.wakeUpType}</div></div>`;
+    }
+
+    // SKU Number
+    if (j.skuNumber) {
+      html += `<div class="kv"><div class="k">SKU</div><div class="v mono">${j.skuNumber}</div></div>`;
+    }
+
+    // Family
+    if (j.family) {
+      html += `<div class="kv"><div class="k">Family</div><div class="v mono">${j.family}</div></div>`;
+    }
+
+    el.innerHTML = html || '<div class="muted">No system info available</div>';
+  } catch(err) {
+    console.error("Error refreshing System Info:", err);
+    const el = document.getElementById("systeminfoContent");
+    if (el) {
+      el.innerHTML = '<div class="small" style="color:var(--muted);">Error loading system info</div>';
+    }
+  }
+}
+
+async function refreshBaseboardInfo() {
+  try {
+    const res = await fetch("/api/baseboard", {cache:"no-store"});
+    const j = await res.json();
+
+    const el = document.getElementById("baseboardContent");
+    if (!el) return;
+
+    if (j.error) {
+      el.innerHTML = `<div class="small" style="color:var(--muted);">${j.error}</div>`;
+      return;
+    }
+
+    let html = '';
+
+    // Manufacturer
+    if (j.manufacturer) {
+      html += `<div class="kv"><div class="k">Manufacturer</div><div class="v mono">${j.manufacturer}</div></div>`;
+    }
+
+    // Product
+    if (j.product) {
+      html += `<div class="kv"><div class="k">Product</div><div class="v mono">${j.product}</div></div>`;
+    }
+
+    // Version
+    if (j.version) {
+      html += `<div class="kv"><div class="k">Version</div><div class="v mono">${j.version}</div></div>`;
+    }
+
+    // Serial Number
+    if (j.serialNumber) {
+      html += `<div class="kv"><div class="k">Serial Number</div><div class="v mono">${j.serialNumber}</div></div>`;
+    }
+
+    // Asset Tag
+    if (j.assetTag) {
+      html += `<div class="kv"><div class="k">Asset Tag</div><div class="v mono">${j.assetTag}</div></div>`;
+    }
+
+    // Location in Chassis
+    if (j.locationInChassis) {
+      html += `<div class="kv"><div class="k">Location</div><div class="v mono">${j.locationInChassis}</div></div>`;
+    }
+
+    // Board Type
+    if (j.boardType) {
+      html += `<div class="kv"><div class="k">Board Type</div><div class="v mono">${j.boardType}</div></div>`;
+    }
+
+    // Feature Flags
+    if (j.featureFlags && j.featureFlags.length > 0) {
+      html += `<div class="kv"><div class="k">Features</div><div class="v mono">${j.featureFlags.join(', ')}</div></div>`;
+    }
+
+    el.innerHTML = html || '<div class="muted">No baseboard info available</div>';
+  } catch(err) {
+    console.error("Error refreshing Baseboard Info:", err);
+    const el = document.getElementById("baseboardContent");
+    if (el) {
+      el.innerHTML = '<div class="small" style="color:var(--muted);">Error loading baseboard info</div>';
+    }
+  }
+}
+
 // Export to window
 window.refreshCPU = refreshCPU;
 window.refreshRAM = refreshRAM;
@@ -309,3 +439,5 @@ window.refreshDisk = refreshDisk;
 window.refreshCPUInfo = refreshCPUInfo;
 window.refreshRAMInfo = refreshRAMInfo;
 window.refreshFirmwareInfo = refreshFirmwareInfo;
+window.refreshSystemInfo = refreshSystemInfo;
+window.refreshBaseboardInfo = refreshBaseboardInfo;

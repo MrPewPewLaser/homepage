@@ -111,6 +111,8 @@ function initialLoad() {
   if (window.refreshCPUInfo) window.refreshCPUInfo();
   if (window.refreshRAMInfo) window.refreshRAMInfo();
   if (window.refreshFirmwareInfo) window.refreshFirmwareInfo();
+  if (window.refreshSystemInfo) window.refreshSystemInfo();
+  if (window.refreshBaseboardInfo) window.refreshBaseboardInfo();
   if (window.refreshWeather) window.refreshWeather();
   if (window.refreshIP) window.refreshIP();
   if (window.refreshGitHub) window.refreshGitHub();

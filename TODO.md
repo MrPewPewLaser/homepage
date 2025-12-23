@@ -92,13 +92,9 @@
 ## SMBIOS
 - [x] Add RAM information
 - [ ] Add CPU information
-- [ ] Add Disk information
-- [ ] Add Network information
 - [x] Add BIOS information
-- [ ] Add Chassis information
-- [ ] Add Product information
-- [ ] Add Serial number information
-- [ ] Add UUID information
+- [ ] Add Baseboard information
+- [ ] Add System information
 
 ## Accessibility
 - [ ] Improve keyboard navigation
