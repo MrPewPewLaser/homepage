@@ -20,6 +20,7 @@ function initPreferencesModal() {
     if (window.renderMonitorsList) window.renderMonitorsList();
     if (window.renderRssModuleList) window.renderRssModuleList();
     if (window.renderSnmpList) window.renderSnmpList();
+    if (window.renderEventsPreferenceList) window.renderEventsPreferenceList();
     renderModuleList();
   });
 
@@ -57,6 +58,11 @@ function initPreferencesModal() {
       // Render layout editor when layout tab is opened
       if (tabName === 'layout' && window.layoutSystem && window.layoutSystem.renderLayoutEditor) {
         window.layoutSystem.renderLayoutEditor();
+      }
+
+      // Render events list when calendar tab is opened
+      if (tabName === 'calendar' && window.renderEventsPreferenceList) {
+        window.renderEventsPreferenceList();
       }
     });
   });

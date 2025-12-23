@@ -83,8 +83,9 @@
 
 ## Integrations
 - [x] Add RSS feed reader
-- [ ] Add calendar integration
+- [x] Add calendar integration
 - [ ] Add note-taking widget
+- [ ] Add todo list widget
 - [ ] Add bookmark manager
 - [ ] Add Google Analytics metrics for users sites
 - [ ] Add Proxmox metrics for proxmox clusters

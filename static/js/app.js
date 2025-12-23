@@ -118,6 +118,7 @@ function initApp() {
   if (window.initMonitoring) window.initMonitoring();
   if (window.initSnmp) window.initSnmp();
   if (window.initRss) window.initRss();
+  if (window.initCalendar) window.initCalendar();
 
   // Init layout
   if (window.initLayout) window.initLayout();

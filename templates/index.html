@@ -150,6 +150,29 @@
           <div class="small" style="color:var(--muted);">Add queries in Preferences → SNMP</div>
         </div>
       </div>
+
+      <div class="card span-4" data-module="calendar" draggable="true">
+        <h3><i class="fas fa-calendar-alt"></i> Calendar<div class="header-icons"><button class="btn-icon" id="calPrevBtn" title="Previous month"><i class="fas fa-chevron-left"></i></button><button class="btn-icon" id="calNextBtn" title="Next month"><i class="fas fa-chevron-right"></i></button><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div class="calendar-nav">
+          <span id="calendarTitle"></span>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </div>
+
+      <div class="card span-4" data-module="events" draggable="true">
+        <h3><i class="fas fa-calendar-check"></i> Upcoming Events<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div id="upcomingEventsList">
+          <div class="muted" style="padding:8px 0;">No upcoming events</div>
+        </div>
+      </div>
+
+      <div class="card span-6" data-module="weekcalendar" draggable="true">
+        <h3><i class="fas fa-calendar-week"></i> Week<div class="header-icons"><button class="btn-icon" id="weekTodayBtn" title="Go to current week"><i class="fas fa-dot-circle"></i></button><button class="btn-icon" id="weekPrevBtn" title="Previous week"><i class="fas fa-chevron-left"></i></button><button class="btn-icon" id="weekNextBtn" title="Next week"><i class="fas fa-chevron-right"></i></button><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div class="calendar-nav">
+          <span id="weekCalendarTitle"></span>
+        </div>
+        <div id="weekCalendarGrid" class="week-calendar-grid"></div>
+      </div>
     </div>
 
     <div id="githubModulesContainer" class="grid" style="margin-top: 12px;"></div>
@@ -185,6 +208,7 @@
         <button class="modal-tab" data-tab="quicklinks"><i class="fas fa-link"></i> Quicklinks</button>
         <button class="modal-tab" data-tab="monitoring"><i class="fas fa-heartbeat"></i> Monitoring</button>
         <button class="modal-tab" data-tab="snmp"><i class="fas fa-network-wired"></i> SNMP</button>
+        <button class="modal-tab" data-tab="calendar"><i class="fas fa-calendar-alt"></i> Calendar</button>
         <button class="modal-tab" data-tab="search"><i class="fas fa-search"></i> Search</button>
         <button class="modal-tab" data-tab="about"><i class="fas fa-info-circle"></i> About</button>
       </div>
@@ -267,6 +291,59 @@
                   <label>Reset module order</label>
                   <button class="btn-small" id="resetOrderBtn"><i class="fas fa-undo"></i> Reset Order</button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calendar Tab -->
+        <div class="tab-content" id="tab-calendar">
+          <div class="pref-section">
+            <h3>Month View Settings</h3>
+            <div class="pref-row">
+              <label>Dim weekends</label>
+              <input type="checkbox" id="pref-dim-weekends" title="Show Saturday and Sunday dimmer">
+            </div>
+          </div>
+          <div class="pref-section">
+            <h3>Week View Settings</h3>
+            <div class="pref-row">
+              <label>Work week only</label>
+              <input type="checkbox" id="pref-work-week" title="Show only Monday to Friday">
+            </div>
+            <div class="pref-row">
+              <label>Week starts on</label>
+              <select id="pref-week-start-day">
+                <option value="0">Sunday</option>
+                <option value="1">Monday</option>
+                <option value="6">Saturday</option>
+              </select>
+            </div>
+          </div>
+          <div class="pref-section">
+            <h3>Events <button class="btn-small" id="addEventBtn"><i class="fas fa-plus"></i> Add</button></h3>
+            <div class="module-list" id="eventsList" style="max-height:300px; overflow-y:auto;"></div>
+          </div>
+          <div class="pref-section" id="eventForm" style="display:none;">
+            <h3>Add / Edit Event</h3>
+            <input type="hidden" id="event-id">
+            <div class="pref-row">
+              <label>Title</label>
+              <input type="text" id="event-title" placeholder="Event title" style="flex:1;">
+            </div>
+            <div class="pref-row">
+              <label>Date</label>
+              <input type="date" id="event-date" style="width:180px;">
+            </div>
+            <div class="pref-row">
+              <label>Time</label>
+              <input type="time" id="event-time" style="width:120px;">
+            </div>
+            <div class="pref-row">
+              <label></label>
+              <div>
+                <button class="btn-small" id="saveEventBtn"><i class="fas fa-check"></i> Save</button>
+                <button class="btn-small" id="cancelEventBtn"><i class="fas fa-times"></i> Cancel</button>
               </div>
             </div>
           </div>
@@ -541,6 +618,7 @@
 <script src="/static/js/modules/quicklinks.js"></script>
 <script src="/static/js/modules/monitoring.js"></script>
 <script src="/static/js/modules/snmp.js"></script>
+<script src="/static/js/modules/calendar.js"></script>
 <script src="/static/js/layout.js"></script>
 <script src="/static/js/preferences.js"></script>
 <script src="/static/js/app.js"></script>
