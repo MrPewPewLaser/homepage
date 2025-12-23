@@ -71,20 +71,30 @@ async function refreshCPUInfo() {
       html += `<div class="kv"><div class="k">CPU</div><div class="v mono">${j.name}</div></div>`;
     }
 
+    // Vendor
+    if (j.vendor) {
+      html += `<div class="kv"><div class="k">Vendor</div><div class="v mono">${j.vendor}</div></div>`;
+    }
+
+    // Family/Model/Stepping
+    if (j.family !== undefined || j.model !== undefined || j.stepping !== undefined) {
+      let fmsStr = '';
+      if (j.family !== undefined) fmsStr += 'Family ' + j.family;
+      if (j.model !== undefined) fmsStr += (fmsStr ? ', ' : '') + 'Model ' + j.model;
+      if (j.stepping !== undefined) fmsStr += (fmsStr ? ', ' : '') + 'Stepping ' + j.stepping;
+      html += `<div class="kv"><div class="k">Signature</div><div class="v mono">${fmsStr}</div></div>`;
+    }
+
     // Cores
     if (j.physicalCores !== undefined || j.virtualCores !== undefined) {
       const physical = j.physicalCores || 'N/A';
       const virtual = j.virtualCores || 'N/A';
-      html += `<div class="kv"><div class="k">Cores</div><div class="v mono">${physical} physical / ${virtual} virtual</div></div>`;
+      html += `<div class="kv"><div class="k">Cores</div><div class="v mono">${physical} physical / ${virtual} logical</div></div>`;
     }
 
-    // Speed
-    let speedParts = [];
-    if (j.speedMin) speedParts.push('Min: ' + j.speedMin.toFixed(2) + ' GHz');
-    if (j.speedMax) speedParts.push('Max: ' + j.speedMax.toFixed(2) + ' GHz');
-    if (j.speedCurrent) speedParts.push('Current: ' + j.speedCurrent.toFixed(2) + ' GHz');
-    if (speedParts.length > 0) {
-      html += `<div class="kv"><div class="k">Speed</div><div class="v mono">${speedParts.join(", ")}</div></div>`;
+    // Hybrid CPU info (Intel P-core/E-core)
+    if (j.hybridCPU && j.coreType) {
+      html += `<div class="kv"><div class="k">Core Type</div><div class="v mono">${j.coreType} (Hybrid CPU)</div></div>`;
     }
 
     // Cache info (array format)
@@ -97,6 +107,12 @@ async function refreshCPUInfo() {
         cacheHtml += `<div class="kv"${style}><div class="k">${label}</div><div class="v mono">${sizeStr}</div></div>`;
       });
       html += cacheHtml;
+    }
+
+    // Features (compact list - show first 15)
+    if (j.features && j.features.length > 0) {
+      const featuresStr = j.features.slice(0, 15).join(', ') + (j.features.length > 15 ? ` (+${j.features.length - 15} more)` : '');
+      html += `<div class="kv" style="border-top:1px solid var(--border); padding-top:12px;"><div class="k">Features</div><div class="v mono" style="font-size:0.8em; word-break:break-word;">${featuresStr}</div></div>`;
     }
 
     el.innerHTML = html || '<div class="muted">No CPU info available</div>';

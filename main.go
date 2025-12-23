@@ -202,15 +202,19 @@ type DiskInfo struct {
 	Error   string  `json:"error,omitempty"`
 }
 
-// CPUDetailsInfo contains detailed CPU information.
+// CPUDetailsInfo contains detailed CPU information from CPUID.
 type CPUDetailsInfo struct {
 	Name          string         `json:"name"`
+	Vendor        string         `json:"vendor,omitempty"`
 	PhysicalCores int            `json:"physicalCores"`
 	VirtualCores  int            `json:"virtualCores"`
-	SpeedMin      float64        `json:"speedMin,omitempty"`
-	SpeedMax      float64        `json:"speedMax,omitempty"`
-	SpeedCurrent  float64        `json:"speedCurrent,omitempty"`
+	Family        int            `json:"family,omitempty"`
+	Model         int            `json:"model,omitempty"`
+	Stepping      int            `json:"stepping,omitempty"`
 	Cache         []CPUCacheInfo `json:"cache,omitempty"`
+	Features      []string       `json:"features,omitempty"`
+	HybridCPU     bool           `json:"hybridCPU,omitempty"`
+	CoreType      string         `json:"coreType,omitempty"`
 	Error         string         `json:"error,omitempty"`
 }
 
@@ -3113,14 +3117,17 @@ func getSystemMetrics(ctx context.Context) SystemMetrics {
 	return metrics
 }
 
-func getCPUDetails(ctx context.Context) CPUDetailsInfo {
+func getCPUDetails(_ context.Context) CPUDetailsInfo {
 	var info CPUDetailsInfo
 
-	// Get vendor and max functions
+	// Get vendor and max functions from cpuid
 	vendorID := cpuid.GetVendorID(false, "")
 	maxFunc, maxExtFunc := cpuid.GetMaxFunctions(false, "")
 
-	// Get brand string (full CPU name)
+	// Get vendor name
+	info.Vendor = cpuid.GetVendorName(false, "")
+
+	// Get brand string (full CPU name) from cpuid
 	brand := cpuid.GetBrandString(maxExtFunc, false, "")
 	if brand != "" {
 		info.Name = strings.TrimSpace(brand)
@@ -3128,44 +3135,22 @@ func getCPUDetails(ctx context.Context) CPUDetailsInfo {
 		info.Name = "Unknown CPU"
 	}
 
-	// Get physical and logical core counts using gopsutil
-	physicalCores, err := cpu.CountsWithContext(ctx, false) // false = physical cores only
-	if err != nil {
-		// Fallback to cpuid if gopsutil fails
-		procInfo := cpuid.GetProcessorInfo(maxFunc, maxExtFunc, false, "")
-		// If CoreCount includes hyperthreading, divide by threads per core
-		if procInfo.ThreadPerCore > 0 {
-			info.PhysicalCores = int(procInfo.CoreCount) / int(procInfo.ThreadPerCore)
-		} else {
-			info.PhysicalCores = int(procInfo.CoreCount)
-		}
+	// Get processor info from cpuid
+	procInfo := cpuid.GetProcessorInfo(maxFunc, maxExtFunc, false, "")
+	info.PhysicalCores = int(procInfo.CoreCount)
+	if procInfo.ThreadPerCore > 0 {
+		info.VirtualCores = int(procInfo.CoreCount) * int(procInfo.ThreadPerCore)
 	} else {
-		info.PhysicalCores = physicalCores
-	}
-	// Use runtime.NumCPU() for total threads (includes hyperthreading)
-	info.VirtualCores = runtime.NumCPU()
-
-	// Get CPU frequencies using gopsutil
-	freqs, err := cpu.InfoWithContext(ctx)
-	if err == nil && len(freqs) > 0 {
-		// Get min/max/current from first CPU
-		f := freqs[0]
-		info.SpeedMin = f.Mhz
-		info.SpeedMax = f.Mhz
-		info.SpeedCurrent = f.Mhz
-
-		// Check all CPUs for min/max range
-		for _, f := range freqs {
-			if f.Mhz < info.SpeedMin {
-				info.SpeedMin = f.Mhz
-			}
-			if f.Mhz > info.SpeedMax {
-				info.SpeedMax = f.Mhz
-			}
-		}
+		info.VirtualCores = int(procInfo.CoreCount)
 	}
 
-	// Get cache information
+	// Get model data from cpuid
+	modelData := cpuid.GetModelData(false, "")
+	info.Family = int(modelData.ExtendedFamily)
+	info.Model = int(modelData.ExtendedModel)
+	info.Stepping = int(modelData.SteppingID)
+
+	// Get cache information from cpuid
 	caches, err := cpuid.GetCacheInfo(maxFunc, maxExtFunc, vendorID, false, "")
 	if err == nil {
 		for _, cache := range caches {
@@ -3176,10 +3161,23 @@ func getCPUDetails(ctx context.Context) CPUDetailsInfo {
 					Type:   cache.Type,
 					SizeKB: int(cache.SizeKB),
 				}
-				// Cache speed is not directly available from cpuid, would need additional sources
 				info.Cache = append(info.Cache, cacheInfo)
 			}
 		}
+	}
+
+	// Get supported features from cpuid
+	categories := cpuid.GetAllFeatureCategories()
+	for _, cat := range categories {
+		features := cpuid.GetSupportedFeatures(cat, false, "")
+		info.Features = append(info.Features, features...)
+	}
+
+	// Check for Intel Hybrid (P-core/E-core) info
+	hybridInfo := cpuid.GetIntelHybrid(false, "")
+	if hybridInfo.HybridCPU {
+		info.HybridCPU = true
+		info.CoreType = hybridInfo.CoreTypeName
 	}
 
 	return info
