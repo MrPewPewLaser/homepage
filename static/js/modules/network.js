@@ -104,6 +104,19 @@ async function refresh() {
       document.getElementById("host").textContent = j.server.hostname;
       document.getElementById("uptime").textContent = window.fmtUptime(j.server.uptimeSec);
       document.getElementById("time").textContent = j.server.time;
+
+      // Convert server time to UTC
+      if (j.server.time) {
+        try {
+          const serverTime = new Date(j.server.time);
+          const utcTime = serverTime.toISOString();
+          document.getElementById("utcTime").textContent = utcTime;
+        } catch(e) {
+          document.getElementById("utcTime").textContent = "—";
+        }
+      } else {
+        document.getElementById("utcTime").textContent = "—";
+      }
     } else {
       if (statusTitle) statusTitle.textContent = "Client Status";
       if (serverInfoDiv) serverInfoDiv.style.display = "none";
