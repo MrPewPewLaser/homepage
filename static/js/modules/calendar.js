@@ -180,6 +180,11 @@ function nextMonth() {
   renderCalendar();
 }
 
+function goToCurrentMonth() {
+  currentCalendarDate = new Date();
+  renderCalendar();
+}
+
 // Week calendar functions
 function getWeekStart(date) {
   const d = new Date(date);
@@ -462,8 +467,10 @@ function initCalendar() {
   renderUpcomingEvents();
 
   // Month calendar navigation buttons
+  const calTodayBtn = document.getElementById('calTodayBtn');
   const prevBtn = document.getElementById('calPrevBtn');
   const nextBtn = document.getElementById('calNextBtn');
+  if (calTodayBtn) calTodayBtn.addEventListener('click', goToCurrentMonth);
   if (prevBtn) prevBtn.addEventListener('click', prevMonth);
   if (nextBtn) nextBtn.addEventListener('click', nextMonth);
 

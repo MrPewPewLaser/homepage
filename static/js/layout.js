@@ -15,7 +15,8 @@ const moduleConfig = {
   rss: { name: 'RSS', icon: 'fa-rss', desc: 'RSS feed reader', hasTimer: true, timerKey: 'rss', defaultInterval: 300, enabled: true },
   calendar: { name: 'Calendar', icon: 'fa-calendar-alt', desc: 'Month calendar view', hasTimer: false, enabled: true },
   weekcalendar: { name: 'Week Calendar', icon: 'fa-calendar-week', desc: 'Week view with events', hasTimer: false, enabled: true },
-  events: { name: 'Upcoming Events', icon: 'fa-calendar-check', desc: 'Next 5 upcoming events', hasTimer: false, enabled: true }
+  events: { name: 'Upcoming Events', icon: 'fa-calendar-check', desc: 'Next 5 upcoming events', hasTimer: false, enabled: true },
+  todo: { name: 'Todo', icon: 'fa-tasks', desc: 'Next 5 todos', hasTimer: false, enabled: true }
 };
 
 let layoutConfig = {
@@ -80,20 +81,25 @@ function renderLayout() {
   const grid = document.getElementById('moduleGrid');
   if (!grid) return;
 
+  // Collect ALL cards from the DOM before clearing
+  // Look in grid first (before clearing), then in containers, then anywhere in the grid (in case they're in layout rows)
   const gridCards = Array.from(grid.querySelectorAll('.card[data-module]'));
   const githubContainer = document.getElementById('githubModulesContainer');
   const githubCards = githubContainer ? Array.from(githubContainer.querySelectorAll('.card[data-module]')) : [];
   const rssContainer = document.getElementById('rssModulesContainer');
   const rssCards = rssContainer ? Array.from(rssContainer.querySelectorAll('.card[data-module]')) : [];
+
+  // Combine and deduplicate by module ID (use first occurrence)
   const allCards = [...gridCards, ...githubCards, ...rssCards];
   const cardsMap = new Map();
   allCards.forEach(card => {
     const moduleId = card.getAttribute('data-module');
-    if (moduleId) {
+    if (moduleId && !cardsMap.has(moduleId)) {
       cardsMap.set(moduleId, card);
     }
   });
 
+  // Now clear the grid
   grid.innerHTML = '';
   grid.className = 'layout-grid';
 
@@ -130,21 +136,56 @@ function renderLayout() {
     grid.appendChild(rowEl);
   });
 
+  // Handle remaining modules that aren't in the layout config yet
   if (cardsMap.size > 0) {
     const remainingModules = Array.from(cardsMap.keys());
-    const newRow = { cols: 3, modules: [] };
-    remainingModules.forEach((moduleId, idx) => {
-      if (idx < 3) {
-        newRow.modules.push(moduleId);
+
+    // Add remaining modules to new rows (3 modules per row) and render them immediately
+    while (remainingModules.length > 0) {
+      const newRow = { cols: 3, modules: [] };
+      for (let i = 0; i < 3 && remainingModules.length > 0; i++) {
+        newRow.modules.push(remainingModules.shift());
       }
-    });
-    while (newRow.modules.length < 3) {
-      newRow.modules.push(null);
+      // Fill remaining slots with null
+      while (newRow.modules.length < 3) {
+        newRow.modules.push(null);
+      }
+      layoutConfig.rows.push(newRow);
+
+      // Render this row immediately
+      const rowEl = document.createElement('div');
+      rowEl.className = 'layout-row';
+      rowEl.dataset.rowIndex = layoutConfig.rows.length - 1;
+      rowEl.style.gridTemplateColumns = `repeat(${newRow.cols}, 1fr)`;
+
+      for (let col = 0; col < newRow.cols; col++) {
+        const colEl = document.createElement('div');
+        colEl.className = 'layout-column';
+        colEl.dataset.rowIndex = layoutConfig.rows.length - 1;
+        colEl.dataset.colIndex = col;
+
+        const moduleId = newRow.modules[col];
+        if (!moduleId) {
+          colEl.classList.add('empty-column');
+          colEl.innerHTML = '<div class="empty-column-hint" style="display: none;">Drop module here</div>';
+        } else {
+          const card = cardsMap.get(moduleId);
+          if (card) {
+            colEl.appendChild(card);
+            cardsMap.delete(moduleId);
+          } else {
+            colEl.classList.add('empty-column');
+            colEl.innerHTML = '<div class="empty-column-hint" style="display: none;">Drop module here</div>';
+          }
+        }
+
+        rowEl.appendChild(colEl);
+      }
+
+      grid.appendChild(rowEl);
     }
-    layoutConfig.rows.push(newRow);
+
     saveLayoutConfig();
-    setTimeout(() => renderLayout(), 0);
-    return;
   }
 
   const mainContainer = document.getElementById('mainContainer');
@@ -519,6 +560,10 @@ function initLayout() {
     renderLayoutEditor();
     initLayoutEditor();
     initDragAndDrop();
+    // Apply module visibility after layout is rendered
+    if (window.applyModuleVisibility) {
+      window.applyModuleVisibility();
+    }
   }, 100);
 }
 

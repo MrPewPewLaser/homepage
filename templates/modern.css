@@ -356,6 +356,18 @@ body{
   .week-calendar-grid[data-cols="5"] .week-header,.week-calendar-grid[data-cols="5"] .week-days{grid-template-columns:repeat(5,1fr);}
   .week-calendar-grid .week-header,.week-calendar-grid .week-days{grid-template-columns:repeat(7,1fr);}
 
+  /* Todo */
+  .todo-priority{font-size:10px;padding:2px 6px;border-radius:3px;text-transform:uppercase;font-weight:600;}
+  .todo-priority.priority-low{background:#4caf50;color:#fff;}
+  .todo-priority.priority-medium{background:#ff9800;color:#fff;}
+  .todo-priority.priority-high{background:#f44336;color:#fff;}
+  .todo-priority-icon{font-size:12px;flex-shrink:0;}
+  .todo-priority-icon.priority-low{color:#4caf50;}
+  .todo-priority-icon.priority-medium{color:#ff9800;}
+  .todo-priority-icon.priority-high{color:#f44336;}
+  .module-item.completed{opacity:0.6;}
+  .module-item.completed .module-name{text-decoration:line-through;}
+
   .span-4{grid-column: span 4}
   .span-6{grid-column: span 6}
   .span-8{grid-column: span 8}

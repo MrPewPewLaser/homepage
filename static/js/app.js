@@ -65,12 +65,27 @@ function saveModulePrefs() {
 
 function applyModuleVisibility() {
   if (!window.moduleConfig) return;
+  let needsRerender = false;
   Object.keys(window.moduleConfig).forEach(key => {
     const card = document.querySelector(`[data-module="${key}"]`);
     if (card) {
-      card.style.display = window.moduleConfig[key].enabled ? '' : 'none';
+      const wasVisible = card.style.display !== 'none';
+      const shouldBeVisible = window.moduleConfig[key].enabled;
+      card.style.display = shouldBeVisible ? '' : 'none';
+      // If visibility changed, we need to re-render layout
+      if (wasVisible !== shouldBeVisible) {
+        needsRerender = true;
+      }
     }
   });
+  // Re-render layout if visibility changed
+  if (needsRerender && window.initLayout) {
+    setTimeout(() => {
+      if (window.layoutSystem && window.layoutSystem.renderLayout) {
+        window.layoutSystem.renderLayout();
+      }
+    }, 0);
+  }
 }
 
 // Set up refresh intervals
@@ -119,6 +134,7 @@ function initApp() {
   if (window.initSnmp) window.initSnmp();
   if (window.initRss) window.initRss();
   if (window.initCalendar) window.initCalendar();
+  if (window.initTodo) window.initTodo();
 
   // Init layout
   if (window.initLayout) window.initLayout();

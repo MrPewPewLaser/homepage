@@ -152,7 +152,7 @@
       </div>
 
       <div class="card span-4" data-module="calendar" draggable="true">
-        <h3><i class="fas fa-calendar-alt"></i> Calendar<div class="header-icons"><button class="btn-icon" id="calPrevBtn" title="Previous month"><i class="fas fa-chevron-left"></i></button><button class="btn-icon" id="calNextBtn" title="Next month"><i class="fas fa-chevron-right"></i></button><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <h3><i class="fas fa-calendar-alt"></i> Calendar<div class="header-icons"><button class="btn-icon" id="calTodayBtn" title="Go to current month"><i class="fas fa-dot-circle"></i></button><button class="btn-icon" id="calPrevBtn" title="Previous month"><i class="fas fa-chevron-left"></i></button><button class="btn-icon" id="calNextBtn" title="Next month"><i class="fas fa-chevron-right"></i></button><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div class="calendar-nav">
           <span id="calendarTitle"></span>
         </div>
@@ -163,6 +163,13 @@
         <h3><i class="fas fa-calendar-check"></i> Upcoming Events<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
         <div id="upcomingEventsList">
           <div class="muted" style="padding:8px 0;">No upcoming events</div>
+        </div>
+      </div>
+
+      <div class="card span-4" data-module="todo" draggable="true">
+        <h3><i class="fas fa-tasks"></i> Next Todos<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+        <div id="nextTodosList">
+          <div class="muted" style="padding:8px 0;">No todos</div>
         </div>
       </div>
 
@@ -209,6 +216,7 @@
         <button class="modal-tab" data-tab="monitoring"><i class="fas fa-heartbeat"></i> Monitoring</button>
         <button class="modal-tab" data-tab="snmp"><i class="fas fa-network-wired"></i> SNMP</button>
         <button class="modal-tab" data-tab="calendar"><i class="fas fa-calendar-alt"></i> Calendar</button>
+        <button class="modal-tab" data-tab="todo"><i class="fas fa-tasks"></i> Todo</button>
         <button class="modal-tab" data-tab="search"><i class="fas fa-search"></i> Search</button>
         <button class="modal-tab" data-tab="about"><i class="fas fa-info-circle"></i> About</button>
       </div>
@@ -344,6 +352,42 @@
               <div>
                 <button class="btn-small" id="saveEventBtn"><i class="fas fa-check"></i> Save</button>
                 <button class="btn-small" id="cancelEventBtn"><i class="fas fa-times"></i> Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Todo Tab -->
+        <div class="tab-content" id="tab-todo">
+          <div class="pref-section">
+            <h3>Todos <button class="btn-small" id="addTodoBtn"><i class="fas fa-plus"></i> Add</button></h3>
+            <div class="module-list" id="todosList" style="max-height:400px; overflow-y:auto;"></div>
+          </div>
+          <div class="pref-section" id="todoForm" style="display:none;">
+            <h3>Add / Edit Todo</h3>
+            <input type="hidden" id="todo-id">
+            <div class="pref-row">
+              <label>Title</label>
+              <input type="text" id="todo-title" placeholder="Todo title" style="flex:1;">
+            </div>
+            <div class="pref-row">
+              <label>Priority</label>
+              <select id="todo-priority" style="width:150px;">
+                <option value="">None</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div class="pref-row">
+              <label>Due Date</label>
+              <input type="date" id="todo-due-date" style="width:180px;">
+            </div>
+            <div class="pref-row">
+              <label></label>
+              <div>
+                <button class="btn-small" id="saveTodoBtn"><i class="fas fa-check"></i> Save</button>
+                <button class="btn-small" id="cancelTodoBtn"><i class="fas fa-times"></i> Cancel</button>
               </div>
             </div>
           </div>
@@ -619,6 +663,7 @@
 <script src="/static/js/modules/monitoring.js"></script>
 <script src="/static/js/modules/snmp.js"></script>
 <script src="/static/js/modules/calendar.js"></script>
+<script src="/static/js/modules/todo.js"></script>
 <script src="/static/js/layout.js"></script>
 <script src="/static/js/preferences.js"></script>
 <script src="/static/js/app.js"></script>

@@ -21,6 +21,7 @@ function initPreferencesModal() {
     if (window.renderRssModuleList) window.renderRssModuleList();
     if (window.renderSnmpList) window.renderSnmpList();
     if (window.renderEventsPreferenceList) window.renderEventsPreferenceList();
+    if (window.renderTodosPreferenceList) window.renderTodosPreferenceList();
     renderModuleList();
   });
 
@@ -63,6 +64,11 @@ function initPreferencesModal() {
       // Render events list when calendar tab is opened
       if (tabName === 'calendar' && window.renderEventsPreferenceList) {
         window.renderEventsPreferenceList();
+      }
+
+      // Render todos list when todo tab is opened
+      if (tabName === 'todo' && window.renderTodosPreferenceList) {
+        window.renderTodosPreferenceList();
       }
     });
   });
