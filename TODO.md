@@ -93,8 +93,8 @@
 - [x] Add RAM information
 - [ ] Add CPU information
 - [x] Add BIOS information
-- [ ] Add Baseboard information
-- [ ] Add System information
+- [x] Add Baseboard information
+- [x] Add System information
 
 ## Accessibility
 - [ ] Improve keyboard navigation

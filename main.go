@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -672,16 +673,20 @@ func sortTemplates(templates []string) []string {
 }
 
 func main() {
+	port := flag.String("port", "8080", "Port to listen on")
+	flag.Parse()
+
+	listenAddr := ":" + *port
 	cfg := Config{
-		ListenAddr:      env("DASH_ADDR", ":8080"),
-		Title:           env("DASH_TITLE", "LAN Index"),
+		ListenAddr:      listenAddr,
+		Title:           "LAN Index",
 		PublicIPTimeout: 1500 * time.Millisecond,
 		Weather: WeatherConfig{
-			Enabled:  envBool("DASH_WEATHER", true),
-			Lat:      env("DASH_LAT", "37.9838"), // Athens, Greece default
-			Lon:      env("DASH_LON", "23.7275"), // Athens, Greece default
-			Provider: env("DASH_WEATHER_PROVIDER", "openmeteo"), // openmeteo, openweathermap, weatherapi
-			APIKey:   env("DASH_WEATHER_API_KEY", ""),
+			Enabled:  true,
+			Lat:      "",
+			Lon:      "",
+			Provider: "openmeteo",
+			APIKey:   "",
 		},
 	}
 
@@ -899,7 +904,7 @@ func main() {
 				resp.Weather.Forecast = wd.Forecast
 			}
 		} else if cfg.Weather.Enabled {
-			resp.Weather.Summary = "Set DASH_LAT and DASH_LON to enable local weather."
+			resp.Weather.Summary = "Set your location in Preferences to enable weather."
 		}
 
 		// GitHub repos (best effort)
@@ -2005,7 +2010,7 @@ func openWeatherMapSummary(ctx context.Context, lat, lon, apiKey string) (Weathe
 	// OpenWeatherMap API. Requires API key.
 	// Docs: https://openweathermap.org/api
 	if apiKey == "" {
-		return WeatherData{}, errors.New("OpenWeatherMap API key required (set DASH_WEATHER_API_KEY)")
+		return WeatherData{}, errors.New("OpenWeatherMap API key required (set in Preferences)")
 	}
 
 	var today, tomorrow *WeatherDay
@@ -2126,7 +2131,7 @@ func weatherAPISummary(ctx context.Context, lat, lon, apiKey string) (WeatherDat
 	// WeatherAPI.com API. Requires API key.
 	// Docs: https://www.weatherapi.com/docs/
 	if apiKey == "" {
-		return WeatherData{}, errors.New("WeatherAPI.com API key required (set DASH_WEATHER_API_KEY)")
+		return WeatherData{}, errors.New("WeatherAPI.com API key required (set in Preferences)")
 	}
 
 	u := "https://api.weatherapi.com/v1/forecast.json?key=" + apiKey + "&q=" + lat + "," + lon + "&days=3&aqi=no&alerts=no"
@@ -4061,27 +4066,6 @@ func itoa(v int64) string {
 	return string(b[i:])
 }
 
-func env(k, def string) string {
-	if v := strings.TrimSpace(os.Getenv(k)); v != "" {
-		return v
-	}
-	return def
-}
-
-func envBool(k string, def bool) bool {
-	v := strings.TrimSpace(strings.ToLower(os.Getenv(k)))
-	if v == "" {
-		return def
-	}
-	switch v {
-	case "1", "true", "yes", "y", "on":
-		return true
-	case "0", "false", "no", "n", "off":
-		return false
-	default:
-		return def
-	}
-}
 
 // RSSFeedItem represents a single RSS feed item
 type RSSFeedItem struct {
