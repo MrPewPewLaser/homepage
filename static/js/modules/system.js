@@ -64,16 +64,71 @@ async function refreshCPUInfo() {
     const el = document.getElementById("cpuidContent");
     if (!el) return;
 
-    let html = '';
-
-    // CPU Name
-    if (j.name) {
-      html += `<div class="kv"><div class="k">CPU</div><div class="v mono">${j.name}</div></div>`;
+    // Update vendor icon/logo in title
+    const titleEl = document.querySelector('[data-module="cpuid"] h3');
+    if (!titleEl) {
+      console.error('CPU Info: Title element not found');
+      return;
+    }
+    
+    // Remove existing vendor icon/text if any
+    const existingVendor = titleEl.querySelector('.vendor-icon, .vendor-text');
+    if (existingVendor) existingVendor.remove();
+    
+    // Find the header-icons div
+    const headerIcons = titleEl.querySelector('.header-icons');
+    if (!headerIcons) {
+      console.error('CPU Info: Header icons element not found');
+      return;
+    }
+    
+    if (!j.vendor) {
+      console.error('CPU Info: No vendor in response', j);
+      return;
+    }
+    
+    const vendorLower = j.vendor.toLowerCase();
+    let vendorIcon = null;
+    let iconClass = 'fab';
+    
+    // Check for vendor brand icons (Font Awesome Brands)
+    // Note: Only Apple has a brand icon in Font Awesome, others will show as text
+    if (vendorLower.includes('apple')) {
+      vendorIcon = 'fa-apple';
+    }
+    
+    if (vendorIcon) {
+      // Show vendor logo icon (only for Apple)
+      const iconEl = document.createElement('i');
+      iconEl.className = `${iconClass} ${vendorIcon} vendor-icon`;
+      iconEl.style.marginLeft = '8px';
+      iconEl.style.fontSize = '28px';
+      iconEl.style.width = '28px';
+      iconEl.style.height = '28px';
+      iconEl.style.display = 'inline-block';
+      iconEl.style.color = 'var(--txt)';
+      iconEl.style.verticalAlign = 'middle';
+      titleEl.insertBefore(iconEl, headerIcons);
+      console.log('CPU Info: Added vendor icon', vendorIcon, iconClass);
+    } else {
+      // Show vendor name as text (for AMD, Intel, RISC-V, etc.)
+      const textEl = document.createElement('span');
+      textEl.className = 'vendor-text';
+      textEl.textContent = j.vendor;
+      textEl.style.marginLeft = '8px';
+      textEl.style.fontSize = '0.75em';
+      textEl.style.color = 'var(--txt)';
+      textEl.style.fontWeight = '500';
+      textEl.style.verticalAlign = 'middle';
+      titleEl.insertBefore(textEl, headerIcons);
+      console.log('CPU Info: Added vendor text', j.vendor);
     }
 
-    // Vendor
-    if (j.vendor) {
-      html += `<div class="kv"><div class="k">Vendor</div><div class="v mono">${j.vendor}</div></div>`;
+    let html = '';
+
+    // CPU Name (no label, just the name)
+    if (j.name) {
+      html += `<div class="kv"><div class="k"></div><div class="v mono">${j.name}</div></div>`;
     }
 
     // Family/Model/Stepping
@@ -97,22 +152,55 @@ async function refreshCPUInfo() {
       html += `<div class="kv"><div class="k">Core Type</div><div class="v mono">${j.coreType} (Hybrid CPU)</div></div>`;
     }
 
-    // Cache info (array format)
+    // Cache info - special handling for L1
     if (j.cache && j.cache.length > 0) {
       let cacheHtml = '';
-      j.cache.forEach((c, idx) => {
-        const style = idx === 0 ? ' style="border-top:1px solid var(--border); padding-top:12px;"' : '';
-        const sizeStr = c.sizeKB >= 1024 ? (c.sizeKB / 1024).toFixed(1) + ' MB' : c.sizeKB + ' KB';
-        const label = 'L' + c.level + (c.type ? ' ' + c.type : '');
-        cacheHtml += `<div class="kv"${style}><div class="k">${label}</div><div class="v mono">${sizeStr}</div></div>`;
+      let l1Data = null;
+      let l1Instruction = null;
+      const otherCaches = [];
+      
+      // Separate L1 caches
+      j.cache.forEach((c) => {
+        if (c.level === 1) {
+          if (c.type && c.type.toLowerCase().includes('data')) {
+            l1Data = c;
+          } else if (c.type && c.type.toLowerCase().includes('instruction')) {
+            l1Instruction = c;
+          } else if (!l1Data && !l1Instruction) {
+            // If no type specified, assume it's data or instruction based on order
+            if (!l1Data) l1Data = c;
+            else if (!l1Instruction) l1Instruction = c;
+          }
+        } else {
+          otherCaches.push(c);
+        }
       });
+      
+      // L1 cache - single line with Data and Instruction
+      if (l1Data || l1Instruction) {
+        const l1Parts = [];
+        if (l1Data) {
+          const sizeStr = l1Data.sizeKB >= 1024 ? (l1Data.sizeKB / 1024).toFixed(1) + ' MB' : l1Data.sizeKB + ' KB';
+          l1Parts.push(`Data: ${sizeStr}`);
+        }
+        if (l1Instruction) {
+          const sizeStr = l1Instruction.sizeKB >= 1024 ? (l1Instruction.sizeKB / 1024).toFixed(1) + ' MB' : l1Instruction.sizeKB + ' KB';
+          l1Parts.push(`Instruction: ${sizeStr}`);
+        }
+        if (l1Parts.length > 0) {
+          cacheHtml += `<div class="kv" style="border-top:1px solid var(--border); padding-top:12px;"><div class="k">L1</div><div class="v mono">${l1Parts.join(', ')}</div></div>`;
+        }
+      }
+      
+      // L2 and L3 caches
+      otherCaches.forEach((c) => {
+        const sizeStr = c.sizeKB >= 1024 ? (c.sizeKB / 1024).toFixed(1) + ' MB' : c.sizeKB + ' KB';
+        const label = 'L' + c.level;
+        const valueStr = c.type ? `${c.type}: ${sizeStr}` : sizeStr;
+        cacheHtml += `<div class="kv"><div class="k">${label}</div><div class="v mono">${valueStr}</div></div>`;
+      });
+      
       html += cacheHtml;
-    }
-
-    // Features (compact list - show first 15)
-    if (j.features && j.features.length > 0) {
-      const featuresStr = j.features.slice(0, 15).join(', ') + (j.features.length > 15 ? ` (+${j.features.length - 15} more)` : '');
-      html += `<div class="kv" style="border-top:1px solid var(--border); padding-top:12px;"><div class="k">Features</div><div class="v mono" style="font-size:0.8em; word-break:break-word;">${featuresStr}</div></div>`;
     }
 
     el.innerHTML = html || '<div class="muted">No CPU info available</div>';

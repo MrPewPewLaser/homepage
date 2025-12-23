@@ -3275,12 +3275,14 @@ func getCPUDetails(_ context.Context) CPUDetailsInfo {
 	}
 
 	// Get processor info from cpuid
+	// Note: CoreCount from cpuid already includes hyperthreading (logical cores)
 	procInfo := cpuid.GetProcessorInfo(maxFunc, maxExtFunc, false, "")
-	info.PhysicalCores = int(procInfo.CoreCount)
-	if procInfo.ThreadPerCore > 0 {
-		info.VirtualCores = int(procInfo.CoreCount) * int(procInfo.ThreadPerCore)
+	info.VirtualCores = int(procInfo.CoreCount) // This is already logical cores
+	if procInfo.ThreadPerCore > 1 {
+		// Physical cores = logical cores / threads per core
+		info.PhysicalCores = int(procInfo.CoreCount) / int(procInfo.ThreadPerCore)
 	} else {
-		info.VirtualCores = int(procInfo.CoreCount)
+		info.PhysicalCores = int(procInfo.CoreCount)
 	}
 
 	// Get model data from cpuid
