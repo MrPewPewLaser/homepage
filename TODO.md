@@ -84,7 +84,6 @@
 ## Integrations
 - [x] Add RSS feed reader
 - [x] Add calendar integration
-- [ ] Add note-taking widget
 - [x] Add todo list widget
 - [ ] Add bookmark manager
 - [ ] Add Google Analytics metrics for users sites
@@ -95,7 +94,7 @@
 - [ ] Add CPU information
 - [ ] Add Disk information
 - [ ] Add Network information
-- [ ] Add BIOS information
+- [x] Add BIOS information
 - [ ] Add Chassis information
 - [ ] Add Product information
 - [ ] Add Serial number information

@@ -91,6 +91,10 @@ async function refresh() {
     const statusTitle = document.getElementById("statusTitle");
     const serverInfoDiv = document.getElementById("serverInfo");
     const clientInfoDiv = document.getElementById("clientInfo");
+    const statusTextEl = document.getElementById("statusText");
+
+    // Set status to Online on successful API call
+    if (statusTextEl) statusTextEl.textContent = "Online";
 
     if (isLocal) {
       if (statusTitle) statusTitle.textContent = "Status";
@@ -125,7 +129,8 @@ async function refresh() {
       j.server.os + "/" + j.server.arch + " • " + j.server.goVersion;
 
   } catch(err) {
-    document.getElementById("statusText").textContent = "Degraded";
+    const statusTextEl = document.getElementById("statusText");
+    if (statusTextEl) statusTextEl.textContent = "Degraded";
   }
 }
 
