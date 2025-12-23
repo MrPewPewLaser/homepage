@@ -66,6 +66,7 @@ var (
 	templatesMap  map[string]*TemplateInfo // template name -> template info
 	templatesList []string                 // ordered list of template names
 	indexTemplate *template.Template
+	appversion    = "0.1.68" // Application version
 )
 
 // Config holds the application configuration.
@@ -716,6 +717,7 @@ func main() {
 			"CurrentTemplate":  templateName,
 			"CurrentScheme":    schemeName,
 			"Year":             time.Now().Year(),
+			"AppVersion":       appversion,
 		})
 	})
 

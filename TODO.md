@@ -15,7 +15,7 @@
 - [x] Add bar graph for ram usage
 - [x] Add popup menu to edit the refresh times for each enabled module, we can disable or enable the module, and change the refresh time
 - [ ] Add Docker containers status
-- [x] Add service health checks
+- [ ] Add service health checks
 - [ ] Add recent logs viewer
 - [x] Add uptime monitoring
 
@@ -63,7 +63,7 @@
 - [x] Add health check endpoints
 - [ ] Add alert history
 - [x] Add SSL certificate expiration monitoring
-- [ ] Add snmp support
+- [x] Add snmp support
 
 ## Data Persistence
 - [x] Add settings storage (localStorage or database)
@@ -74,7 +74,7 @@
 - [x] Add api to monitor services
 
 ## Customization
-- [ ] Add grid layout configuration
+- [x] Add grid layout configuration
 - [ ] Add color scheme customization
 
 ## Performance
