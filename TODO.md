@@ -45,10 +45,8 @@
 - [ ] Add multiple location support
 
 ## Search Improvements
-- [ ] Add search history
-- [ ] Add favorite search engines
-- [ ] Add custom search engines
-- [ ] Add keyboard shortcuts display
+- [x] Add search history
+- [x] Add searching of search history
 
 ## Quick Links Enhancements
 - [x] Make links editable via UI
@@ -83,22 +81,13 @@
 - [ ] Add service worker for offline support
 - [ ] Add asset caching
 
-## Security
-- [ ] Add authentication/authorization
-- [ ] Add API key support
-- [ ] Add rate limiting on endpoints
-- [ ] Add HTTPS enforcement
-
 ## Integrations
 - [ ] Add RSS feed reader
 - [ ] Add calendar integration
 - [ ] Add note-taking widget
 - [ ] Add bookmark manager
-
-## Analytics
-- [ ] Add page view tracking
-- [ ] Add module usage statistics
-- [ ] Add performance metrics dashboard
+- [ ] Add Google Analytics metrics for users sites
+- [ ] Add Proxmox metrics for proxmox clusters
 
 ## Accessibility
 - [ ] Improve keyboard navigation

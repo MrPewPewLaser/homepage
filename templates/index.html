@@ -45,7 +45,6 @@
           <div class="menu" id="engineMenu"></div>
         </div>
       </div>
-      <div class="pill" id="goBtn">Go</div>
     </div>
   </div>
 
@@ -180,6 +179,7 @@
         <button class="modal-tab" data-tab="quicklinks"><i class="fas fa-link"></i> Quicklinks</button>
         <button class="modal-tab" data-tab="monitoring"><i class="fas fa-heartbeat"></i> Monitoring</button>
         <button class="modal-tab" data-tab="snmp"><i class="fas fa-network-wired"></i> SNMP</button>
+        <button class="modal-tab" data-tab="search"><i class="fas fa-search"></i> Search</button>
         <button class="modal-tab" data-tab="about"><i class="fas fa-info-circle"></i> About</button>
       </div>
       <div class="modal-content">
@@ -262,6 +262,20 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+        <div class="tab-content" id="tab-search">
+          <div class="pref-section">
+            <h3>Search History</h3>
+            <div class="pref-row">
+              <label>Search in history</label>
+              <input type="text" id="searchHistoryFilter" placeholder="Filter searches..." style="flex:1;">
+            </div>
+            <div class="pref-row">
+              <label></label>
+              <button class="btn-small" id="clearSearchHistoryBtn"><i class="fas fa-trash"></i> Clear All</button>
+            </div>
+            <div class="module-list" id="searchHistoryList" style="max-height:500px; overflow-y:auto; margin-top:12px;"></div>
           </div>
         </div>
         <div class="tab-content" id="tab-layout">
@@ -539,15 +553,86 @@ document.addEventListener('click', (ev) => {
   }
 });
 
+// Search history management
+let searchHistory = [];
+
+function loadSearchHistory() {
+  try {
+    const stored = localStorage.getItem('searchHistory');
+    if (stored) {
+      searchHistory = JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Error loading search history:', e);
+    searchHistory = [];
+  }
+}
+
+function saveSearchHistory() {
+  try {
+    // Keep only last 100 searches
+    if (searchHistory.length > 100) {
+      searchHistory = searchHistory.slice(-100);
+    }
+    localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+  } catch (e) {
+    console.error('Error saving search history:', e);
+  }
+}
+
+function addToSearchHistory(term, engineName) {
+  if (!term) return;
+  // Remove if already exists (to move to end)
+  searchHistory = searchHistory.filter(item => !(item.term === term && item.engine === engineName));
+  // Add to end
+  searchHistory.push({
+    term: term,
+    engine: engineName,
+    timestamp: Date.now()
+  });
+  saveSearchHistory();
+  // Update history UI if preferences modal is open
+  if (window.renderSearchHistory) {
+    window.renderSearchHistory();
+  }
+}
+
+function removeFromSearchHistory(index) {
+  searchHistory.splice(index, 1);
+  saveSearchHistory();
+  if (window.renderSearchHistory) {
+    window.renderSearchHistory();
+  }
+}
+
+function clearSearchHistory() {
+  if (confirm('Are you sure you want to clear all search history?')) {
+    searchHistory = [];
+    saveSearchHistory();
+    if (window.renderSearchHistory) {
+      window.renderSearchHistory();
+    }
+  }
+}
+
 function goSearch(){
   const term = (q.value || "").trim();
   if(!term) return;
+  addToSearchHistory(term, engine.name);
   const u = engine.url.replace("%s", encodeURIComponent(term));
   window.open(u, "_blank", "noreferrer");
+  q.value = ""; // Clear input after search
 }
 
-document.getElementById('goBtn').onclick = goSearch;
-q.addEventListener('keydown', (e) => { if(e.key === "Enter") goSearch(); });
+q.addEventListener('keydown', (e) => {
+  if(e.key === "Enter") {
+    e.preventDefault();
+    goSearch();
+  }
+});
+
+// Load history on page load
+loadSearchHistory();
 
 // Check if any modal is open
 function isModalOpen() {
@@ -1137,7 +1222,7 @@ async function refreshCPUInfo(){
               l1Parts.push(`${cache.type}: ${sizeText}`);
             }
           });
-          cacheHTML += `<div class="kv"><div class="k">L1</div><div class="v mono">${l1Parts.join(", ")}</div></div>`;
+          cacheHTML += `<div class="kv" style="border-top:1px solid var(--border); padding-top:10px;"><div class="k">L1</div><div class="v mono">${l1Parts.join(", ")}</div></div>`;
         }
 
         // L2: On its own line
@@ -1807,6 +1892,14 @@ applyModuleVisibility();
     modal.classList.add('active');
     renderModuleList();
     updateSchemeSelect();
+    // Render search history if search tab is active
+    if (document.getElementById('tab-search') && document.getElementById('tab-search').classList.contains('active')) {
+      setTimeout(() => {
+        if (window.renderSearchHistory) {
+          window.renderSearchHistory();
+        }
+      }, 50);
+    }
   });
 
   // Close modal
@@ -1832,6 +1925,15 @@ applyModuleVisibility();
       if (tab.dataset.tab === 'layout' && window.layoutSystem) {
         setTimeout(() => {
           window.layoutSystem.renderLayoutEditor();
+        }, 50);
+      }
+
+      // Render search history when search tab is opened
+      if (tab.dataset.tab === 'search') {
+        setTimeout(() => {
+          if (window.renderSearchHistory) {
+            window.renderSearchHistory();
+          }
         }, 50);
       }
     });
@@ -1929,6 +2031,136 @@ applyModuleVisibility();
     localStorage.removeItem('moduleOrder');
     location.reload();
   });
+
+  // Search history management
+  const searchHistoryFilter = document.getElementById('searchHistoryFilter');
+  const searchHistoryList = document.getElementById('searchHistoryList');
+  const clearSearchHistoryBtn = document.getElementById('clearSearchHistoryBtn');
+
+  // Render search history list
+  window.renderSearchHistory = function() {
+    const filter = (searchHistoryFilter.value || "").toLowerCase().trim();
+    let filteredHistory = searchHistory;
+
+    if (filter) {
+      filteredHistory = searchHistory.filter(item =>
+        item.term.toLowerCase().includes(filter) ||
+        item.engine.toLowerCase().includes(filter)
+      );
+    }
+
+    // Reverse to show most recent first
+    filteredHistory = [...filteredHistory].reverse();
+
+    if (filteredHistory.length === 0) {
+      searchHistoryList.innerHTML = '<div class="small" style="color:var(--muted); padding:12px; text-align:center;">' +
+        (filter ? 'No searches match your filter' : 'No search history') + '</div>';
+      return;
+    }
+
+    searchHistoryList.innerHTML = '';
+    filteredHistory.forEach((item, displayIndex) => {
+      // Find actual index in original array (reversed for display)
+      // filteredHistory is reversed, so we need to find the item in the original array
+      const actualIndex = searchHistory.findIndex(h => h.term === item.term && h.engine === item.engine && h.timestamp === item.timestamp);
+      if (actualIndex === -1) return; // Skip if not found (shouldn't happen)
+
+      const div = document.createElement('div');
+      div.className = 'module-item';
+      div.style.display = 'flex';
+      div.style.alignItems = 'center';
+      div.style.gap = '12px';
+      div.style.padding = '10px';
+      div.style.border = '1px solid var(--border)';
+      div.style.borderRadius = '8px';
+      div.style.marginBottom = '8px';
+
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      info.style.minWidth = '0';
+
+      const termDiv = document.createElement('div');
+      termDiv.style.fontWeight = '500';
+      termDiv.style.marginBottom = '4px';
+      termDiv.textContent = item.term;
+
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'small';
+      metaDiv.style.color = 'var(--muted)';
+      metaDiv.style.display = 'flex';
+      metaDiv.style.gap = '12px';
+      metaDiv.style.flexWrap = 'wrap';
+
+      const engineSpan = document.createElement('span');
+      engineSpan.textContent = item.engine;
+
+      const timeSpan = document.createElement('span');
+      const date = new Date(item.timestamp);
+      timeSpan.textContent = date.toLocaleString();
+
+      metaDiv.appendChild(engineSpan);
+      metaDiv.appendChild(timeSpan);
+
+      info.appendChild(termDiv);
+      info.appendChild(metaDiv);
+
+      const actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '8px';
+
+      const searchBtn = document.createElement('button');
+      searchBtn.className = 'btn-small';
+      searchBtn.innerHTML = '<i class="fas fa-search"></i>';
+      searchBtn.title = 'Search again';
+      searchBtn.onclick = () => {
+        // Find the engine
+        const searchEngine = engines.find(e => e.name === item.engine) || engines[0];
+        engine = searchEngine;
+        engineBtn.textContent = engine.name + " ▾";
+        q.value = item.term;
+        q.focus();
+        modal.classList.remove('active');
+        goSearch();
+      };
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn-small';
+      removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
+      removeBtn.title = 'Remove';
+      removeBtn.onclick = () => {
+        removeFromSearchHistory(actualIndex);
+      };
+
+      actions.appendChild(searchBtn);
+      actions.appendChild(removeBtn);
+
+      div.appendChild(info);
+      div.appendChild(actions);
+      searchHistoryList.appendChild(div);
+    });
+  };
+
+  // Filter search history
+  searchHistoryFilter.addEventListener('input', () => {
+    window.renderSearchHistory();
+  });
+
+  // Clear all search history
+  clearSearchHistoryBtn.addEventListener('click', () => {
+    clearSearchHistory();
+  });
+
+  // Render search history when search tab is opened
+  const searchTab = document.querySelector('.modal-tab[data-tab="search"]');
+  if (searchTab) {
+    searchTab.addEventListener('click', () => {
+      setTimeout(() => {
+        if (window.renderSearchHistory) {
+          window.renderSearchHistory();
+        }
+      }, 50);
+    });
+  }
 
   // Full bars preference
   const fullBarsCheckbox = document.getElementById('pref-full-bars');
@@ -4091,8 +4323,8 @@ setInterval(refreshIP, timers.ip.interval);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: 100%;
-  max-width: 900px;
+  width: 80%;
+  max-width: 80%;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
