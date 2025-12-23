@@ -907,24 +907,8 @@ func main() {
 			resp.Weather.Summary = "Set your location in Preferences to enable weather."
 		}
 
-		// GitHub repos (best effort)
-		{
-			userRepos, orgRepos, err := fetchGitHubRepos(ctx)
-			// Always use the repos we got, even if there's an error
-			// The error field in the struct will contain the actual error message (e.g., rate limiting)
-			resp.GitHub.UserRepos = userRepos
-			resp.GitHub.OrgRepos = orgRepos
-			if err != nil {
-				log.Printf("GitHub fetch error: %v", err)
-				// Only set error if it's not already set (rate limit errors are already in the struct)
-				if userRepos.Error == "" {
-					resp.GitHub.UserRepos.Error = err.Error()
-				}
-				if orgRepos.Error == "" {
-					resp.GitHub.OrgRepos.Error = err.Error()
-				}
-			}
-		}
+		// GitHub repos - don't fetch here, let frontend modules handle it via /api/github/repos
+		// This avoids hitting rate limits on every page load
 
 		// System metrics
 		{
