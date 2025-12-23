@@ -3501,20 +3501,21 @@ setInterval(refreshIP, timers.ip.interval);
         .filter(m => m !== null)
         .map(m => getModuleName(m));
       const modulesText = moduleNames.length > 0
-        ? ': ' + moduleNames.join(', ')
-        : ' (empty)';
+        ? moduleNames.join(', ')
+        : '(empty)';
 
       const rowEditor = document.createElement('div');
       rowEditor.className = 'layout-row-editor';
       rowEditor.innerHTML = `
         <div class="layout-row-controls">
-          <span>Row ${rowIndex + 1}${modulesText}</span>
+          <span>Row ${rowIndex + 1}</span>
           <select class="row-cols-select" data-row="${rowIndex}">
             <option value="1" ${row.cols === 1 ? 'selected' : ''}>1 Column</option>
             <option value="2" ${row.cols === 2 ? 'selected' : ''}>2 Columns</option>
             <option value="3" ${row.cols === 3 ? 'selected' : ''}>3 Columns</option>
           </select>
           <button class="btn-small remove-row-btn" data-row="${rowIndex}"><i class="fas fa-trash"></i></button>
+          <span style="margin-left: auto; color: var(--muted); font-size: 13px;">${modulesText}</span>
         </div>
       `;
 
