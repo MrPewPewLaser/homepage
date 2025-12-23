@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -168,14 +170,14 @@ type DiskInfo struct {
 }
 
 type CPUDetailsInfo struct {
-	Name         string            `json:"name"`
-	PhysicalCores int              `json:"physicalCores"`
-	VirtualCores  int              `json:"virtualCores"`
-	SpeedMin      float64          `json:"speedMin,omitempty"`
-	SpeedMax      float64          `json:"speedMax,omitempty"`
-	SpeedCurrent  float64          `json:"speedCurrent,omitempty"`
-	Cache         []CPUCacheInfo   `json:"cache,omitempty"`
-	Error         string           `json:"error,omitempty"`
+	Name          string         `json:"name"`
+	PhysicalCores int            `json:"physicalCores"`
+	VirtualCores  int            `json:"virtualCores"`
+	SpeedMin      float64        `json:"speedMin,omitempty"`
+	SpeedMax      float64        `json:"speedMax,omitempty"`
+	SpeedCurrent  float64        `json:"speedCurrent,omitempty"`
+	Cache         []CPUCacheInfo `json:"cache,omitempty"`
+	Error         string         `json:"error,omitempty"`
 }
 
 type CPUCacheInfo struct {
@@ -463,14 +465,34 @@ func init() {
 	}
 	indexTemplate = template.Must(template.New("index").Parse(string(indexHTML)))
 
-	// First pass: Load base templates (nordic.css, modern.css, minimal.css)
-	baseTemplates := []string{"nordic", "modern", "minimal"}
+	// Dynamically discover and load all CSS templates from the templates directory
+	entries, err := fs.ReadDir(templatesFS, "templates")
+	if err != nil {
+		log.Fatalf("Failed to read templates directory: %v", err)
+	}
 
-	for _, templateName := range baseTemplates {
-		path := "templates/" + templateName + ".css"
+	for _, entry := range entries {
+		// Skip directories and non-CSS files
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := entry.Name()
+		// Skip index.html and any non-CSS files
+		if filename == "index.html" || !strings.HasSuffix(filename, ".css") {
+			continue
+		}
+
+		// Extract template name from filename (e.g., "nordic.css" -> "nordic")
+		templateName := strings.TrimSuffix(filename, ".css")
+		if templateName == "" {
+			continue
+		}
+
+		path := filepath.Join("templates", filename)
 		cssContent, err := templatesFS.ReadFile(path)
 		if err != nil {
-			log.Printf("Warning: Failed to read base template %s: %v", path, err)
+			log.Printf("Warning: Failed to read template %s: %v", path, err)
 			continue
 		}
 
@@ -2948,13 +2970,13 @@ func getCPUDetails(ctx context.Context) CPUDetailsInfo {
 	caches, err := cpuid.GetCacheInfo(maxFunc, maxExtFunc, vendorID, false, "")
 	if err == nil {
 		for _, cache := range caches {
-		// Only include L1, L2, L3
-		if cache.Level >= 1 && cache.Level <= 3 {
-			cacheInfo := CPUCacheInfo{
-				Level:  int(cache.Level),
-				Type:   cache.Type,
-				SizeKB: int(cache.SizeKB),
-			}
+			// Only include L1, L2, L3
+			if cache.Level >= 1 && cache.Level <= 3 {
+				cacheInfo := CPUCacheInfo{
+					Level:  int(cache.Level),
+					Type:   cache.Type,
+					SizeKB: int(cache.SizeKB),
+				}
 				// Cache speed is not directly available from cpuid, would need additional sources
 				info.Cache = append(info.Cache, cacheInfo)
 			}
