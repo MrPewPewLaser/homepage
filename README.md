@@ -51,7 +51,17 @@ go build -o homepage
 ./homepage
 ```
 
-The dashboard will be available at `http://localhost:8080` by default.
+On startup, the dashboard displays all accessible addresses:
+
+```
+Dashboard starting...
+  Listening on: :8080
+  http://192.168.1.100:8080
+  http://10.0.0.5:8080
+  http://localhost:8080
+```
+
+This includes all IPv4 addresses from active network interfaces, making it easy to access the dashboard from other devices on your network.
 
 ## Configuration
 
@@ -67,16 +77,93 @@ The dashboard will be available at `http://localhost:8080` by default.
 
 ### Preferences
 
-All configuration is managed through the dashboard's Preferences system:
-- **General**: Theme, color scheme, layout settings
-- **Weather**: Location, provider, API keys
-- **GitHub**: Usernames, organizations, API tokens
-- **RSS**: Feed URLs
-- **Monitoring**: Service endpoints
-- **Modules**: Enable/disable modules, refresh intervals
-- **Layout**: Grid configuration, module arrangement
+All configuration is managed through the dashboard's Preferences system (accessible via the gear icon in the footer):
 
-Preferences are stored in browser localStorage and can be exported/imported via the Config tab.
+#### General Tab
+- **Appearance**:
+  - Theme selection (Nordic, Modern, Minimal, Forest, Ocean, Matrix, Blade Runner, Alien)
+  - Color scheme selection (varies by theme)
+- **Timers**:
+  - Disk Refresh interval (5-3600 seconds, default: 15)
+  - RSS Refresh interval (60-86400 seconds, default: 300)
+- **Graphs**:
+  - Show full bar height toggle (displays unused portion in dimmed color)
+  - Minimum bar width (2-50 pixels, default: 10)
+- **Data**:
+  - Clear cached data (resets history graphs and module preferences)
+  - Reset module order (restores default layout)
+- **GitHub API Key**: Optional token for higher rate limits (stored securely)
+
+#### Modules Tab
+- Enable/disable individual modules
+- Configure refresh intervals for modules with timers
+- Manage multiple GitHub modules (repos, PRs, commits, issues)
+- Manage multiple RSS feed modules
+- Manage multiple disk modules (add/remove disks to monitor)
+
+#### Layout Tab
+- Grid configuration (columns per row)
+- Maximum dashboard width percentage
+- Visual layout editor showing current module arrangement
+- Drag-and-drop module reordering
+
+#### Weather Tab
+- Location search and selection
+- Weather provider selection (Open-Meteo, OpenWeatherMap, WeatherAPI.com)
+- API key configuration for providers that require it
+
+#### GitHub Tab
+- Add/remove GitHub usernames or organizations
+- Configure GitHub modules (repos, PRs, commits, issues, stats)
+- Set item count per module (1-20, default: 5)
+
+#### RSS Tab
+- Add/remove RSS feed URLs
+- Configure feed display options (show/hide title, text, date)
+- Set item count per feed (1-20, default: 5)
+
+#### Monitoring Tab
+- Add/remove service endpoints to monitor
+- Configure check intervals
+- View service status and SSL certificate information
+
+#### SNMP Tab
+- Add/remove SNMP devices
+- Configure OID queries and community strings
+- Set refresh intervals
+
+#### Calendar Tab
+- Month view settings:
+  - Dim weekends toggle
+- Week view settings:
+  - Work week only toggle (Monday-Friday)
+  - Week start day selection (Sunday, Monday, Saturday)
+- Event management (add, edit, delete events)
+
+#### Todo Tab
+- Manage todo items
+- Set priorities (low, medium, high)
+- Mark items as complete
+
+#### Quicklinks Tab
+- Add, edit, or delete quick links
+- Automatic favicon fetching and caching
+
+#### Search Tab
+- View and filter search history
+- Clear search history
+
+#### Config Tab
+- Export configuration (downloads all preferences as JSON)
+- Import configuration (upload JSON to restore settings)
+- List and manage saved configurations
+- Delete saved configurations
+
+#### About Tab
+- Application version information
+- Links to source code
+
+Preferences are stored in browser localStorage and can be exported/imported via the Config tab for backup and migration.
 
 ## Modules
 
@@ -85,7 +172,9 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 #### Status
 - System uptime
 - Server time (local and UTC)
-- Online status indicator
+- Online status indicator (pulsing dot)
+- Hostname display
+- Client IP and hostname (if available)
 
 #### CPU
 - Real-time CPU usage percentage
@@ -140,10 +229,11 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 ### Network Modules
 
 #### Network
-- Local IP addresses with PTR records
+- Local IP addresses with PTR records (reverse DNS)
 - Public IP address with PTR record
 - Network interface information
 - **PTR caching**: DNS PTR lookups are cached for 1 hour to reduce queries
+- Automatic PTR lookups run once per hour after app starts
 - Configurable refresh interval (default: 7200 seconds)
 
 ### Weather Module
@@ -193,18 +283,21 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 ### Calendar Modules
 
 #### Calendar
-- Month view
-- Event display
-- Navigation controls
+- Month view with event display
+- Navigation controls (previous/next month)
+- **Dim weekends option**: Show Saturday and Sunday in dimmed color
+- Event management via Preferences > Calendar tab
 
 #### Week Calendar
 - Week view with events
-- Event details
-- Day-by-day breakdown
+- Event details and day-by-day breakdown
+- **Work week only option**: Show only Monday-Friday
+- **Week start day**: Configure week to start on Sunday, Monday, or Saturday
 
 #### Upcoming Events
 - Next 5 upcoming events
 - Event details and dates
+- Click events to view/edit in calendar
 
 ### Todo Module
 
@@ -215,33 +308,48 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 
 ### Monitoring Module
 
-- Service health checks
-- HTTP/HTTPS endpoint monitoring
-- SSL certificate expiration monitoring
-- Uptime tracking
-- Response time monitoring
-- Configurable refresh interval (default: 60 seconds)
+- Service health checks for HTTP/HTTPS endpoints
+- Add/remove services via Preferences > Monitoring tab
+- Per-service configuration:
+  - Service URL
+  - Check interval (default: 60 seconds)
+- Monitoring features:
+  - Health status (online/offline)
+  - Response time tracking
+  - SSL certificate expiration monitoring (for HTTPS)
+  - Uptime tracking
+- Visual status indicators in the module
 
 ### SNMP Module
 
 - SNMP device queries
 - OID-based queries
-- Community string support
-- Configurable refresh interval (default: 60 seconds)
+- Community string support (default: "public")
+- Add/remove SNMP devices via Preferences > SNMP tab
+- Configure per-device settings:
+  - Host address
+  - Port (default: 161)
+  - Community string
+  - OID to query
+- Configurable refresh interval per device (default: 60 seconds)
 
 ### Quick Links Module
 
 - Customizable bookmark collection
-- Icon support (favicon caching)
-- Editable via UI
+- Add, edit, delete links via Preferences > Quicklinks tab
+- Automatic favicon fetching and caching
+- Links displayed with icons in module
 - Quick access to frequently used sites
+- Links saved in browser localStorage
 
 ### Search Module
 
-- Global search functionality
-- Search history
-- Search history search
-- Quick access
+- Global search functionality in header
+- Multiple search engine support (Google, DuckDuckGo, etc.)
+- Search history automatically saved
+- Filter and search within search history
+- Clear search history from Preferences > Search tab
+- Quick access via header search box
 
 ## API Endpoints
 
@@ -254,6 +362,8 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 - `GET /api/firmware` - Get BIOS/Firmware information
 - `GET /api/systeminfo` - Get SMBIOS System information
 - `GET /api/baseboard` - Get SMBIOS Baseboard information
+- `GET /api/disks` - List all available disk partitions
+- `GET /api/disk?mount={mountPoint}` - Get disk usage for a specific mount point
 
 ### Network Endpoints
 
@@ -345,92 +455,137 @@ Each theme includes multiple color schemes:
 
 #### Module Layout
 
-- **Drag and Drop**: Click and drag modules by the grip handle to reorder
+- **Drag and Drop**: Click and drag modules by the grip handle (⋮⋮ icon) to reorder
 - **Layout Editor**: Access via Preferences > Layout tab
-- **Grid Configuration**: Set number of columns per row
-- **Max Width**: Adjust dashboard maximum width percentage
+  - Visual representation of current layout
+  - Shows split modules as "ModuleA/ModuleB"
+  - Remove modules from layout
+- **Grid Configuration**: Set number of columns per row (1-6)
+- **Max Width**: Adjust dashboard maximum width percentage (50-100%)
 
 #### Advanced Drag Features
 
-- **Quick Disable**: Drag a module to the left edge of the screen to disable it (removes from layout and preferences)
-- **Temporary Pin**: Drag a module to the right edge to pin it temporarily. The pinned module:
-  - Stays fixed on screen while you scroll
-  - Can be dragged from the pin to a new location
-  - Has a close button to unpin without moving
-  - If dropped in invalid area, stays pinned instead of disappearing
+- **Quick Disable**:
+  - Drag a module to the left edge of the screen
+  - Background turns muted red with disable icon
+  - Module is disabled and removed from layout and preferences
+  - Can be re-enabled from Preferences > Modules tab
+
+- **Temporary Pin**:
+  - Drag a module to the right edge of the screen
+  - Background turns soft green with pin icon
+  - Module is pinned temporarily and:
+    - Stays fixed on screen while you scroll
+    - Can be dragged from the pin to a new location
+    - Has a close button (×) to unpin without moving
+    - If dropped in invalid area, stays pinned instead of disappearing
+  - Useful for repositioning modules while viewing other parts of the dashboard
 
 - **Column Splitting**: Create vertically-stacked modules in a single column:
   1. Drag a module over an existing module's column
-  2. Hold for 5 seconds until the split overlay appears
+  2. Hold for 5 seconds until the split overlay appears (shows top/bottom zones)
   3. Drop on the top or bottom zone
   4. Both modules now share the column height equally
-  - Split modules show as "ModuleA/ModuleB" in the layout editor
-  - Drag to empty split slots to fill them
-  - Empty split slots can receive drops directly
+  5. Split modules show as "ModuleA/ModuleB" in the layout editor
+  6. Drag additional modules to empty split slots to fill them
+  7. Empty split slots can receive drops directly
+  8. Remove split modules individually from layout editor
 
 ### Weather Configuration
 
 1. Open Preferences > Weather tab
-2. Search for your location
-3. Select weather provider
-4. Enter API key if required
-5. Location is saved in browser localStorage
+2. Search for your location using the search box
+3. Select from search results to set location
+4. Choose weather provider:
+   - **Open-Meteo** (default, no API key required)
+   - **OpenWeatherMap** (requires API key)
+   - **WeatherAPI.com** (requires API key)
+5. Enter API key if using a provider that requires it
+6. Location and provider settings are saved in browser localStorage
+7. Weather updates automatically based on module refresh interval (default: 1800 seconds)
 
 ### GitHub Integration
 
 1. Open Preferences > GitHub tab
 2. Add GitHub usernames or organizations
-3. Optionally add GitHub token for higher rate limits
-4. Repositories are displayed as modules
+3. Optionally add GitHub token in General tab for higher rate limits
+4. Click "Add" to create GitHub modules (repos, PRs, commits, issues, stats)
+5. Configure each module:
+   - Select type (repos, PRs, commits, issues, stats)
+   - Set item count (1-20, default: 5)
+6. Modules are displayed on the dashboard with automatic refresh
 
 ### RSS Feeds
 
 1. Open Preferences > RSS tab
-2. Add RSS feed URLs
-3. Feeds are displayed as modules
-4. Configure refresh intervals
+2. Click "Add" to add RSS feed URLs
+3. Configure each feed:
+   - Feed URL
+   - Number of articles to show (1-20, default: 5)
+   - Display options: Show/hide title, text, date (all checked by default)
+4. Feeds are displayed as modules on the dashboard
+5. Configure global RSS refresh interval in General > Timers (default: 300 seconds)
+6. Hover over article titles to preview images (if available in feed)
 
 ### Service Monitoring
 
 1. Open Preferences > Monitoring tab
-2. Add service URLs
-3. Configure check intervals
-4. View service status in Monitoring module
+2. Add service URLs (HTTP/HTTPS endpoints)
+3. Configure check intervals per service
+4. View service status in Monitoring module:
+   - Health status (online/offline)
+   - Response time
+   - SSL certificate expiration (for HTTPS)
+   - Uptime tracking
 
 ### Quick Links
 
-1. Click "Edit" in Quick Links module
+1. Open Preferences > Quicklinks tab
 2. Add, edit, or delete links
 3. Links are saved in browser localStorage
 4. Favicons are automatically fetched and cached
+5. Quick access to frequently used sites from the dashboard
 
 ### Calendar & Events
 
-1. Calendar displays current month
-2. Add events via calendar interface
-3. Events are saved in browser localStorage
-4. View upcoming events in dedicated module
+1. Calendar displays current month with navigation controls
+2. Configure calendar settings in Preferences > Calendar tab:
+   - Dim weekends (month view)
+   - Work week only (week view)
+   - Week start day (Sunday, Monday, or Saturday)
+3. Add events via Preferences > Calendar tab or click on calendar dates
+4. Events are saved in browser localStorage
+5. View upcoming events in dedicated "Upcoming Events" module
 
 ### Todo List
 
-1. Add todos via Todo module
+1. Add todos via Preferences > Todo tab or Todo module
 2. Set priorities (low, medium, high)
 3. Mark todos as complete
-4. Todos are saved in browser localStorage
+4. Edit or delete todos from Preferences > Todo tab
+5. View next 5 todos in dedicated Todo module
+6. Todos are saved in browser localStorage
 
 ### Search
 
 1. Use the search box in the header
-2. Search history is automatically saved
-3. Access search history by clicking search box
-4. Search within search history
+2. Select search engine from dropdown (Google, DuckDuckGo, etc.)
+3. Search history is automatically saved
+4. Access search history by clicking search box
+5. Filter search history in Preferences > Search tab
+6. Clear search history from Preferences > Search tab
 
 ### Configuration Management
 
-1. Export configuration: Preferences > Config tab > Download
-2. Import configuration: Preferences > Config tab > Upload
-3. Saved configurations are listed in the Config tab
-4. Configurations include all user preferences and module settings
+1. **Export configuration**: Preferences > Config tab > Download
+   - Downloads all preferences as JSON file
+   - Includes: themes, module settings, layout, weather, GitHub, RSS, monitoring, calendar, todos, quicklinks
+2. **Import configuration**: Preferences > Config tab > Upload
+   - Upload previously exported JSON file
+   - Restores all settings and preferences
+3. **Saved configurations**: List and manage saved configuration files
+4. **Delete configurations**: Remove saved configuration files
+5. Configurations include all user preferences and module settings for easy backup and migration
 
 ## Development
 
@@ -438,17 +593,45 @@ Each theme includes multiple color schemes:
 
 ```
 homepage/
-├── main.go                 # Main application code
+├── main.go                 # Main application code and API endpoints
+├── go.mod                  # Go module dependencies
+├── go.sum                  # Go module checksums
+├── README.md               # This file - project documentation
+├── TODO.md                 # Development todo list
+├── configs/                # Saved configuration files
+│   └── Default.json       # Default configuration template
 ├── static/                 # Static assets
 │   └── js/                 # JavaScript modules
-│       ├── app.js          # Application initialization
-│       ├── layout.js       # Layout system
-│       ├── preferences.js  # Preferences management
-│       └── modules/       # Module-specific code
-├── templates/              # HTML and CSS templates
-│   ├── index.html         # Main HTML template
-│   └── *.css              # Theme CSS files
-└── go.mod                  # Go dependencies
+│       ├── app.js          # Application initialization and intervals
+│       ├── core.js         # Core utilities and helpers
+│       ├── graphs.js       # History graph rendering (CPU, RAM, Disk)
+│       ├── layout.js       # Layout system and drag-and-drop
+│       ├── preferences.js # Preferences modal management
+│       └── modules/         # Module-specific code
+│           ├── calendar.js  # Calendar and events management
+│           ├── config.js   # Configuration import/export
+│           ├── github.js   # GitHub integration (repos, PRs, commits, issues)
+│           ├── monitoring.js # Service monitoring
+│           ├── network.js  # Network IP and PTR lookups
+│           ├── quicklinks.js # Quick links management
+│           ├── rss.js      # RSS feed parsing and display
+│           ├── search.js   # Search functionality
+│           ├── snmp.js    # SNMP device queries
+│           ├── system.js   # System metrics (CPU, RAM, Disk, SMBIOS)
+│           ├── todo.js    # Todo list management
+│           └── weather.js # Weather data fetching and display
+└── templates/              # HTML and CSS templates
+    ├── index.html         # Main HTML template
+    ├── index.html.old     # Backup of previous template version
+    └── *.css              # Theme CSS files
+        ├── alien.css      # Alien theme
+        ├── bladerunner.css # Blade Runner theme
+        ├── forest.css     # Forest theme
+        ├── matrix.css     # Matrix theme
+        ├── minimal.css    # Minimal theme
+        ├── modern.css     # Modern theme
+        ├── nordic.css     # Nordic theme (default)
+        └── ocean.css      # Ocean theme
 ```
 
 ### Adding a New Module
@@ -492,20 +675,20 @@ Display: Default
 ### Dependencies
 
 Key Go dependencies:
-- `github.com/shirou/gopsutil/v3` - System metrics
-- `github.com/earentir/gosmbios` - SMBIOS data
-- `github.com/earentir/cpuid` - CPU information
-- `github.com/gosnmp/gosnmp` - SNMP support
-- `github.com/miekg/dns` - DNS lookups
-
-## License
-
-[Add your license here]
+- `github.com/shirou/gopsutil/v3` - System metrics (CPU, RAM, disk, network)
+- `github.com/earentir/gosmbios` - SMBIOS data (hardware information)
+- `github.com/earentir/cpuid` - CPU information and features
+- `github.com/gosnmp/gosnmp` - SNMP device queries
+- `github.com/miekg/dns` - DNS lookups and PTR record queries
 
 ## Contributing
 
-[Add contribution guidelines here]
+Contributions are always welcome!
+All contributions are required to follow the [![License](https://google.github.io/styleguide/go/)](https://google.github.io/styleguide/go/)
 
-## Version
 
-Current version: 0.1.69
+## License
+
+I will always follow the Linux Kernel License as primary, if you require any other OPEN license please let me know and I will try to accomodate it.
+
+[![License](https://img.shields.io/github/license/earentir/gitearelease)](https://opensource.org/license/gpl-2-0)
