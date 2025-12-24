@@ -1466,6 +1466,18 @@ func main() {
 		})
 	})
 
+	// Serve service worker from root
+	mux.HandleFunc("/sw.js", func(w http.ResponseWriter, r *http.Request) {
+		swContent, err := fs.ReadFile(staticFS, "static/sw.js")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Header().Set("Service-Worker-Allowed", "/")
+		w.Write(swContent)
+	})
+
 	// Serve static files (JS, CSS, etc.)
 	staticContent, err := fs.Sub(staticFS, "static")
 	if err != nil {
