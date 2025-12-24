@@ -139,18 +139,28 @@ function renderGraphBars(graph, history) {
 
 function updateGraph(graphId, history, saveFunc, usage) {
   const graph = document.getElementById(graphId);
-  if (!graph) return;
 
-  const containerWidth = graph.clientWidth - 6;
-  const newBarCount = history.length + 1;
-  const barWidthIfAdded = (containerWidth - (barGap * (newBarCount - 1))) / newBarCount;
+  // Always save history even if graph doesn't exist yet
+  if (graph) {
+    const containerWidth = graph.clientWidth - 6;
+    const newBarCount = history.length + 1;
+    const barWidthIfAdded = (containerWidth - (barGap * (newBarCount - 1))) / newBarCount;
 
-  if (barWidthIfAdded < minBarWidth && history.length > 0) {
-    history.shift();
+    if (barWidthIfAdded < minBarWidth && history.length > 0) {
+      history.shift();
+    }
+  } else {
+    // No graph yet - just trim to reasonable max
+    const maxDefault = 100;
+    if (history.length >= maxDefault) {
+      history.shift();
+    }
   }
 
   history.push(usage);
   saveFunc();
+
+  if (!graph) return;
 
   while (graph.children.length < history.length) {
     const bar = document.createElement("div");
