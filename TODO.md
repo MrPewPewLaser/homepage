@@ -38,10 +38,8 @@
 
 ## Weather Enhancements
 - [x] Add location picker UI
-- [ ] Add weather API key support
+- [x] Add weather API key support
 - [x] add icons for weather conditions
-- [ ] add weather alerts
-- [ ] add weather historical data
 - [ ] Add multiple location support
 
 ## Search Improvements
@@ -50,9 +48,7 @@
 
 ## Quick Links Enhancements
 - [x] Make links editable via UI
-- [ ] Add link categories
 - [x] Add icons for links
-- [ ] Add most-used links tracking
 - [x] Add favicon caching
 
 ## Monitoring & Alerts
@@ -88,6 +84,7 @@
 - [ ] Add bookmark manager
 - [ ] Add Google Analytics metrics for users sites
 - [ ] Add Proxmox metrics for proxmox clusters
+- [ ] Add pihole start/stop/status and metrics
 
 ## SMBIOS
 - [x] Add RAM information
@@ -95,9 +92,3 @@
 - [x] Add BIOS information
 - [x] Add Baseboard information
 - [x] Add System information
-
-## Accessibility
-- [ ] Improve keyboard navigation
-- [ ] Add screen reader support
-- [ ] Add ARIA labels
-- [ ] Add high contrast mode
