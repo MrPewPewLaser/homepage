@@ -353,6 +353,50 @@ type GitHubCache struct {
 
 var githubCache = &GitHubCache{}
 
+// PTR cache to avoid frequent DNS lookups
+type PTRCacheEntry struct {
+	PTR       string
+	Timestamp time.Time
+}
+
+type PTRCache struct {
+	mu      sync.RWMutex
+	entries map[string]PTRCacheEntry
+}
+
+var ptrCache = &PTRCache{
+	entries: make(map[string]PTRCacheEntry),
+}
+
+const ptrCacheTTL = 1 * time.Hour
+
+// getCachedPTR returns cached PTR or performs lookup if cache is stale
+func getCachedPTR(ip string, dnsServer string) string {
+	cacheKey := ip + "@" + dnsServer
+
+	// Check cache first
+	ptrCache.mu.RLock()
+	entry, exists := ptrCache.entries[cacheKey]
+	ptrCache.mu.RUnlock()
+
+	if exists && time.Since(entry.Timestamp) < ptrCacheTTL {
+		return entry.PTR
+	}
+
+	// Cache miss or stale - perform lookup
+	ptr := reverseDNSUncached(ip, dnsServer)
+
+	// Store in cache
+	ptrCache.mu.Lock()
+	ptrCache.entries[cacheKey] = PTRCacheEntry{
+		PTR:       ptr,
+		Timestamp: time.Now(),
+	}
+	ptrCache.mu.Unlock()
+
+	return ptr
+}
+
 // findBlockEnd finds the end of a CSS block (the matching closing brace)
 func findBlockEnd(content string, startPos int) int {
 	if startPos >= len(content) {
@@ -1691,7 +1735,13 @@ func getClientIP(r *http.Request) string {
 	return ip
 }
 
+// reverseDNS returns cached PTR record, refreshing every hour
 func reverseDNS(ip string, dnsServer string) string {
+	return getCachedPTR(ip, dnsServer)
+}
+
+// reverseDNSUncached performs actual DNS PTR lookup
+func reverseDNSUncached(ip string, dnsServer string) string {
 	// Parse IP address
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil {

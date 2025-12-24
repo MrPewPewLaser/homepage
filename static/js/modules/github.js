@@ -74,10 +74,11 @@ function setCachedGitHubData(moduleId, displayType, data) {
   saveGitHubCache(cache);
 }
 
-function renderGitHubContent(moduleId, displayType, data) {
+function renderGitHubContent(moduleId, displayType, data, maxItems) {
   const container = document.getElementById("content-" + moduleId);
   const countEl = document.getElementById("count-" + moduleId);
   const errEl = document.getElementById("err-" + moduleId);
+  const limit = maxItems || 5;
 
   if (!container) return;
 
@@ -92,24 +93,25 @@ function renderGitHubContent(moduleId, displayType, data) {
   if (errEl) errEl.textContent = "";
 
   if (displayType === 'repos') {
-    renderReposList(container, countEl, data);
+    renderReposList(container, countEl, data, limit);
   } else if (displayType === 'prs') {
-    renderPRsList(container, countEl, data);
+    renderPRsList(container, countEl, data, limit);
   } else if (displayType === 'commits') {
-    renderCommitsList(container, countEl, data);
+    renderCommitsList(container, countEl, data, limit);
   } else if (displayType === 'issues') {
-    renderIssuesList(container, countEl, data);
+    renderIssuesList(container, countEl, data, limit);
   } else if (displayType === 'stats') {
     renderStats(container, countEl, data);
   } else {
-    renderReposList(container, countEl, data);
+    renderReposList(container, countEl, data, limit);
   }
 }
 
-function renderReposList(container, countEl, data) {
+function renderReposList(container, countEl, data, maxItems) {
+  const limit = maxItems || 5;
   if (data.repos && data.repos.length > 0) {
     if (countEl) countEl.textContent = (data.total || data.repos.length) + " repositories";
-    data.repos.forEach((repo) => {
+    data.repos.slice(0, limit).forEach((repo) => {
       const item = document.createElement("div");
       item.className = "repo-item";
       const name = document.createElement("div");
@@ -153,10 +155,11 @@ function renderReposList(container, countEl, data) {
   }
 }
 
-function renderPRsList(container, countEl, data) {
+function renderPRsList(container, countEl, data, maxItems) {
+  const limit = maxItems || 5;
   if (data.items && data.items.length > 0) {
     if (countEl) countEl.textContent = (data.total || data.items.length) + " pull requests";
-    data.items.forEach((pr) => {
+    data.items.slice(0, limit).forEach((pr) => {
       const item = document.createElement("div");
       item.className = "repo-item";
       item.innerHTML = `
@@ -175,10 +178,11 @@ function renderPRsList(container, countEl, data) {
   }
 }
 
-function renderCommitsList(container, countEl, data) {
+function renderCommitsList(container, countEl, data, maxItems) {
+  const limit = maxItems || 5;
   if (data.items && data.items.length > 0) {
     if (countEl) countEl.textContent = (data.items.length) + " recent commits";
-    data.items.forEach((commit) => {
+    data.items.slice(0, limit).forEach((commit) => {
       const item = document.createElement("div");
       item.className = "repo-item";
       item.innerHTML = `
@@ -196,10 +200,11 @@ function renderCommitsList(container, countEl, data) {
   }
 }
 
-function renderIssuesList(container, countEl, data) {
+function renderIssuesList(container, countEl, data, maxItems) {
+  const limit = maxItems || 5;
   if (data.items && data.items.length > 0) {
     if (countEl) countEl.textContent = (data.total || data.items.length) + " issues";
-    data.items.forEach((issue) => {
+    data.items.slice(0, limit).forEach((issue) => {
       const item = document.createElement("div");
       item.className = "repo-item";
       item.innerHTML = `
@@ -238,7 +243,7 @@ async function refreshGitHubModule(mod, forceRefresh = false) {
   try {
     const displayType = mod.displayType || 'repos';
     const accountType = mod.accountType || mod.type || 'user';
-    
+
     // Check if we should use cached data (unless forced refresh)
     if (!forceRefresh) {
       const timer = window.timers && window.timers.github;
@@ -259,28 +264,29 @@ async function refreshGitHubModule(mod, forceRefresh = false) {
       if (shouldUseCache) {
         const cachedData = getCachedGitHubData(mod.id, displayType);
         if (cachedData) {
-          renderGitHubContent(mod.id, displayType, cachedData);
+          renderGitHubContent(mod.id, displayType, cachedData, mod.maxItems || 5);
           return;
         }
       }
     }
-    
+
     // Fetch from API (timer expired or forced refresh or no cache)
     const githubToken = localStorage.getItem('githubToken') || '';
-    let url = "/api/github/" + displayType + "?name=" + encodeURIComponent(mod.name) + "&type=" + accountType;
+    const maxItems = mod.maxItems || 5;
+    let url = "/api/github/" + displayType + "?name=" + encodeURIComponent(mod.name) + "&type=" + accountType + "&count=" + maxItems;
     if (githubToken) url += "&token=" + encodeURIComponent(githubToken);
     const res = await fetch(url, {cache:"no-store"});
     const data = await res.json();
-    
+
     // Store in cache
     setCachedGitHubData(mod.id, displayType, data);
-    renderGitHubContent(mod.id, displayType, data);
+    renderGitHubContent(mod.id, displayType, data, maxItems);
   } catch(err) {
     console.error("Error refreshing GitHub module " + mod.id + ":", err);
     // Try to use cached data on error
     const cachedData = getCachedGitHubData(mod.id, displayType);
     if (cachedData) {
-      renderGitHubContent(mod.id, displayType, cachedData);
+      renderGitHubContent(mod.id, displayType, cachedData, mod.maxItems || 5);
     } else {
       const errEl = document.getElementById("err-" + mod.id);
       if (errEl) errEl.textContent = "Error loading data";
@@ -341,11 +347,11 @@ function renderGitHubModules() {
     `;
 
     container.appendChild(card);
-    
+
     // Load cached data on initial render
     const cachedData = getCachedGitHubData(mod.id, displayType);
     if (cachedData) {
-      renderGitHubContent(mod.id, displayType, cachedData);
+      renderGitHubContent(mod.id, displayType, cachedData, mod.maxItems || 5);
     }
   });
 
@@ -410,8 +416,11 @@ function renderGitHubModuleList() {
 }
 
 function showGitHubEditDialog(index) {
-  const mod = index >= 0 ? githubModules[index] : { id: 'github-' + Date.now(), type: 'user', name: '', url: '', enabled: true };
+  const mod = index >= 0 ? githubModules[index] : { id: 'github-' + Date.now(), type: 'user', name: '', url: '', enabled: true, maxItems: 5 };
   const isNew = index < 0;
+
+  // Ensure default for existing modules
+  if (mod.maxItems === undefined) mod.maxItems = 5;
 
   const dialog = document.createElement('div');
   dialog.className = 'modal-overlay active';
@@ -444,6 +453,10 @@ function showGitHubEditDialog(index) {
               <option value="issues" ${mod.displayType === 'issues' ? 'selected' : ''}>Issues</option>
               <option value="stats" ${mod.displayType === 'stats' ? 'selected' : ''}>Stats</option>
             </select>
+          </div>
+          <div class="pref-row">
+            <label>Items</label>
+            <input type="number" id="github-edit-max" value="${mod.maxItems || 5}" min="1" max="20" style="width:60px;">
           </div>
         </div>
         <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
@@ -500,6 +513,8 @@ function showGitHubEditDialog(index) {
 
     const name = accountTypeSelect.value === 'repo' ? parts.join('/') : parts[0];
 
+    const maxItems = Math.max(1, Math.min(20, parseInt(document.getElementById('github-edit-max').value) || 5));
+
     if (isNew) {
       githubModules.push({
         id: 'github-' + Date.now(),
@@ -507,13 +522,15 @@ function showGitHubEditDialog(index) {
         displayType: displayTypeSelect.value,
         name: name,
         url: url.startsWith('https://') ? url : 'https://github.com/' + name,
-        enabled: true
+        enabled: true,
+        maxItems: maxItems
       });
     } else {
       githubModules[index].url = url.startsWith('https://') ? url : 'https://github.com/' + name;
       githubModules[index].accountType = accountTypeSelect.value;
       githubModules[index].displayType = displayTypeSelect.value;
       githubModules[index].name = name;
+      githubModules[index].maxItems = maxItems;
     }
 
     saveGitHubModules();
