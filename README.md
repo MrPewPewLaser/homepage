@@ -28,7 +28,8 @@ A comprehensive, customizable dashboard application built with Go and vanilla Ja
 - **SNMP Support**: Query SNMP devices on your network
 - **Quick Links**: Customizable bookmark collection with favicon support
 - **Search**: Global search with history
-- **Drag-and-Drop Layout**: Fully customizable module arrangement
+- **Drag-and-Drop Layout**: Fully customizable module arrangement with split columns
+- **Quick Module Actions**: Drag to left edge to disable, drag to right edge to temporarily pin
 - **Theme System**: Multiple themes with color scheme variations
 
 ## Installation
@@ -111,10 +112,12 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 - Serial numbers
 
 #### Disk
+- **Multiple disk support**: Monitor multiple disks simultaneously
 - Disk usage by mount point
 - Free and used space
-- Historical usage graph
-- Configurable refresh interval (default: 15 seconds)
+- Historical usage graph (persisted across page loads)
+- Configurable refresh interval via General preferences (default: 15 seconds)
+- Add/remove disks via Preferences > Modules > Disk Modules
 
 #### Firmware
 - BIOS/Firmware vendor
@@ -140,6 +143,7 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 - Local IP addresses with PTR records
 - Public IP address with PTR record
 - Network interface information
+- **PTR caching**: DNS PTR lookups are cached for 1 hour to reduce queries
 - Configurable refresh interval (default: 7200 seconds)
 
 ### Weather Module
@@ -172,15 +176,19 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 - Commit activity
 - Pull request status
 - Issue tracking
-- Rate limit monitoring
+- Configurable number of items per module (1-20, default: 5)
+- Rate limit monitoring with caching to prevent excessive API calls
 - Optional GitHub token support for higher rate limits
 
 ### RSS Module
 
-- Subscribe to RSS feeds
-- Feed item display
+- Subscribe to multiple RSS feeds
+- Feed item display with title, description, and date
+- **Image preview**: Hover over titles to see feed images (from enclosure/media:content)
+- Configurable number of articles per feed (1-20, default: 5)
+- Show/hide title, text, date per feed
 - Configurable refresh interval (default: 300 seconds)
-- Multiple feed support
+- Multiple feed support with individual settings
 
 ### Calendar Modules
 
@@ -277,7 +285,7 @@ Preferences are stored in browser localStorage and can be exported/imported via 
 
 ### RSS Endpoints
 
-- `GET /api/rss?url={feedUrl}` - Fetch RSS feed
+- `GET /api/rss?url={feedUrl}&count={count}` - Fetch RSS feed (count: 1-20, default 5)
 
 ### Configuration Endpoints
 
@@ -341,6 +349,24 @@ Each theme includes multiple color schemes:
 - **Layout Editor**: Access via Preferences > Layout tab
 - **Grid Configuration**: Set number of columns per row
 - **Max Width**: Adjust dashboard maximum width percentage
+
+#### Advanced Drag Features
+
+- **Quick Disable**: Drag a module to the left edge of the screen to disable it (removes from layout and preferences)
+- **Temporary Pin**: Drag a module to the right edge to pin it temporarily. The pinned module:
+  - Stays fixed on screen while you scroll
+  - Can be dragged from the pin to a new location
+  - Has a close button to unpin without moving
+  - If dropped in invalid area, stays pinned instead of disappearing
+
+- **Column Splitting**: Create vertically-stacked modules in a single column:
+  1. Drag a module over an existing module's column
+  2. Hold for 5 seconds until the split overlay appears
+  3. Drop on the top or bottom zone
+  4. Both modules now share the column height equally
+  - Split modules show as "ModuleA/ModuleB" in the layout editor
+  - Drag to empty split slots to fill them
+  - Empty split slots can receive drops directly
 
 ### Weather Configuration
 
@@ -482,4 +508,4 @@ Key Go dependencies:
 
 ## Version
 
-Current version: 0.1.68
+Current version: 0.1.69
