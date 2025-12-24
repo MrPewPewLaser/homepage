@@ -87,14 +87,25 @@ function isModalOpen() {
 // Fetch with timeout wrapper
 function fetchWithTimeout(url, options = {}, timeout = 5000) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const timeoutId = setTimeout(() => {
+    console.log('[Core] fetchWithTimeout: Aborting request to', url, 'after', timeout, 'ms');
+    controller.abort();
+  }, timeout);
   
   return fetch(url, {
     ...options,
     signal: controller.signal
-  }).finally(() => {
-    clearTimeout(timeoutId);
-  });
+  })
+    .then((response) => {
+      clearTimeout(timeoutId);
+      console.log('[Core] fetchWithTimeout: Request succeeded to', url);
+      return response;
+    })
+    .catch((error) => {
+      clearTimeout(timeoutId);
+      console.log('[Core] fetchWithTimeout: Request failed to', url, error.name, error.message);
+      throw error;
+    });
 }
 
 // Export to window

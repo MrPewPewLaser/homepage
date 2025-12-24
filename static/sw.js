@@ -65,33 +65,55 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  console.log('[SW] Fetch intercepted:', request.method, url.pathname, request.mode);
+
   // Skip cross-origin requests
   if (url.origin !== location.origin) {
+    console.log('[SW] Skipping cross-origin request');
     return;
   }
 
-  // For navigation requests, try network first, fallback to cache if offline
+  // For navigation requests, try network first with timeout, fallback to cache if offline
   if (request.mode === 'navigate' || url.pathname === '/') {
+    console.log('[SW] Handling navigation request');
+    const fetchPromise = fetch(request).catch(err => {
+      console.log('[SW] Navigation fetch error:', err.message);
+      throw err;
+    });
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Navigation timeout')), 2000)
+    );
+    
     event.respondWith(
-      fetch(request)
+      Promise.race([fetchPromise, timeoutPromise])
         .then((response) => {
+          console.log('[SW] Navigation fetch succeeded:', response.status);
           // Cache successful HTML responses
           if (response.ok) {
             const responseClone = response.clone();
             caches.open(STATIC_CACHE_NAME).then((cache) => {
               cache.put(request, responseClone);
+              console.log('[SW] Cached navigation response');
             });
           }
           return response;
         })
-        .catch(() => {
-          // Network failed - try cache
+        .catch((error) => {
+          console.log('[SW] Navigation fetch failed/timeout, trying cache:', error.message);
+          // Network failed - try cache immediately
           return caches.match(request).then((cachedResponse) => {
             if (cachedResponse) {
+              console.log('[SW] Serving cached navigation response');
               return cachedResponse;
             }
-            // No cache - let the request fail naturally
-            throw new Error('No cached page available');
+            console.log('[SW] No cached navigation response available');
+            // No cache - return a basic HTML page that will load scripts
+            // This allows the page to load even when server is down
+            return new Response('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Loading...</title></head><body><script>window.location.reload();</script></body></html>', {
+              status: 200,
+              headers: { 'Content-Type': 'text/html' }
+            });
           });
         })
     );
@@ -100,13 +122,17 @@ self.addEventListener('fetch', (event) => {
 
   // Don't intercept API requests - let them go through normally
   if (url.pathname.startsWith('/api/')) {
+    console.log('[SW] Skipping API request:', url.pathname);
     return;
   }
 
   // Only cache static assets (JS, CSS files in /static/)
   if (!url.pathname.startsWith('/static/')) {
+    console.log('[SW] Skipping non-static request:', url.pathname);
     return;
   }
+  
+  console.log('[SW] Caching static asset in background:', url.pathname);
 
   // Just cache successful responses in background
   // Never intercept - let all requests pass through normally
