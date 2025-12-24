@@ -120,15 +120,67 @@ function renderLayout() {
       colEl.dataset.rowIndex = rowIndex;
       colEl.dataset.colIndex = col;
 
-      const moduleId = row.modules[col];
-      if (!moduleId) {
+      const moduleSlot = row.modules[col];
+
+      // Check if this is a split column (array of two module IDs)
+      if (Array.isArray(moduleSlot)) {
+        colEl.classList.add('split-column');
+        colEl.style.display = 'flex';
+        colEl.style.flexDirection = 'column';
+        colEl.style.gap = '4px';
+
+        // Top module
+        const topWrapper = document.createElement('div');
+        topWrapper.className = 'split-slot split-slot-top';
+        topWrapper.dataset.splitPosition = 'top';
+        topWrapper.style.flex = '1';
+        topWrapper.style.minHeight = '0';
+        topWrapper.style.overflow = 'hidden';
+
+        if (moduleSlot[0]) {
+          const topCard = cardsMap.get(moduleSlot[0]);
+          if (topCard) {
+            topCard.style.height = '100%';
+            topCard.style.overflow = 'auto';
+            topWrapper.appendChild(topCard);
+            cardsMap.delete(moduleSlot[0]);
+          }
+        } else {
+          topWrapper.classList.add('empty-split');
+          topWrapper.innerHTML = '<div class="empty-column-hint" style="display:none;">Drop here (top)</div>';
+        }
+
+        // Bottom module
+        const bottomWrapper = document.createElement('div');
+        bottomWrapper.className = 'split-slot split-slot-bottom';
+        bottomWrapper.dataset.splitPosition = 'bottom';
+        bottomWrapper.style.flex = '1';
+        bottomWrapper.style.minHeight = '0';
+        bottomWrapper.style.overflow = 'hidden';
+
+        if (moduleSlot[1]) {
+          const bottomCard = cardsMap.get(moduleSlot[1]);
+          if (bottomCard) {
+            bottomCard.style.height = '100%';
+            bottomCard.style.overflow = 'auto';
+            bottomWrapper.appendChild(bottomCard);
+            cardsMap.delete(moduleSlot[1]);
+          }
+        } else {
+          bottomWrapper.classList.add('empty-split');
+          bottomWrapper.innerHTML = '<div class="empty-column-hint" style="display:none;">Drop here (bottom)</div>';
+        }
+
+        colEl.appendChild(topWrapper);
+        colEl.appendChild(bottomWrapper);
+      } else if (!moduleSlot) {
         colEl.classList.add('empty-column');
         colEl.innerHTML = '<div class="empty-column-hint" style="display: none;">Drop module here</div>';
       } else {
-        const card = cardsMap.get(moduleId);
+        const card = cardsMap.get(moduleSlot);
         if (card) {
           colEl.appendChild(card);
-          cardsMap.delete(moduleId);
+          cardsMap.delete(moduleSlot);
         } else {
           colEl.classList.add('empty-column');
           colEl.innerHTML = '<div class="empty-column-hint" style="display: none;">Drop module here</div>';
@@ -235,9 +287,19 @@ function renderLayoutEditor() {
   editor.innerHTML = '';
 
   layoutConfig.rows.forEach((row, rowIndex) => {
-    const moduleNames = row.modules
-      .filter(m => m !== null)
-      .map(m => getModuleName(m));
+    // Handle both regular and split modules
+    const moduleNames = [];
+    row.modules.forEach(m => {
+      if (Array.isArray(m)) {
+        // Split module - show both names
+        const names = m.filter(id => id).map(id => getModuleName(id));
+        if (names.length > 0) {
+          moduleNames.push(names.join('/'));
+        }
+      } else if (m) {
+        moduleNames.push(getModuleName(m));
+      }
+    });
     const modulesText = moduleNames.length > 0 ? moduleNames.join(', ') : '(empty)';
 
     const rowEditor = document.createElement('div');
@@ -273,7 +335,16 @@ function renderLayoutEditor() {
 
     const removeBtn = rowEditor.querySelector('.remove-row-btn');
     removeBtn.addEventListener('click', () => {
-      const modules = layoutConfig.rows[rowIndex].modules.filter(m => m);
+      // Collect all module IDs from this row (handling split modules)
+      const modules = [];
+      layoutConfig.rows[rowIndex].modules.forEach(m => {
+        if (Array.isArray(m)) {
+          m.filter(id => id).forEach(id => modules.push(id));
+        } else if (m) {
+          modules.push(m);
+        }
+      });
+
       if (modules.length > 0 && rowIndex > 0) {
         const prevRow = layoutConfig.rows[rowIndex - 1];
         modules.forEach(m => {
@@ -326,6 +397,178 @@ let leftDropZone = null;
 let rightDropZone = null;
 let pinnedModule = null;
 let pinnedDropSuccess = false;
+
+// Split column tracking
+let splitHoverTimeout = null;
+let splitActiveColumn = null;
+let splitOverlay = null;
+
+function createSplitOverlay(column) {
+  // Remove existing overlay
+  removeSplitOverlay();
+
+  splitActiveColumn = column;
+  splitOverlay = document.createElement('div');
+  splitOverlay.className = 'split-overlay';
+  splitOverlay.style.cssText = `
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    pointer-events: auto;
+  `;
+
+  const topZone = document.createElement('div');
+  topZone.className = 'split-zone split-top';
+  topZone.style.cssText = `
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(100, 160, 120, 0.3);
+    border: 2px dashed rgba(100, 160, 120, 0.8);
+    border-bottom: 1px dashed rgba(100, 160, 120, 0.8);
+    margin: 4px 4px 2px 4px;
+    border-radius: 8px 8px 0 0;
+    transition: background 0.2s;
+  `;
+  topZone.innerHTML = '<i class="fas fa-arrow-up" style="color: rgba(100, 160, 120, 0.8); font-size: 20px;"></i>';
+
+  const bottomZone = document.createElement('div');
+  bottomZone.className = 'split-zone split-bottom';
+  bottomZone.style.cssText = `
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(100, 160, 120, 0.3);
+    border: 2px dashed rgba(100, 160, 120, 0.8);
+    border-top: 1px dashed rgba(100, 160, 120, 0.8);
+    margin: 2px 4px 4px 4px;
+    border-radius: 0 0 8px 8px;
+    transition: background 0.2s;
+  `;
+  bottomZone.innerHTML = '<i class="fas fa-arrow-down" style="color: rgba(100, 160, 120, 0.8); font-size: 20px;"></i>';
+
+  // Add drag handlers to zones
+  [topZone, bottomZone].forEach(zone => {
+    zone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.style.background = 'rgba(100, 160, 120, 0.5)';
+    });
+
+    zone.addEventListener('dragleave', (e) => {
+      zone.style.background = 'rgba(100, 160, 120, 0.3)';
+    });
+
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (draggedElement) {
+        const rowIndex = parseInt(column.dataset.rowIndex);
+        const colIndex = parseInt(column.dataset.colIndex);
+        const isTop = zone.classList.contains('split-top');
+        const isPinnedClone = draggedElement.dataset.isPinnedClone === 'true';
+        const moduleId = isPinnedClone
+          ? (draggedElement.dataset.originalModuleId || draggedElement.getAttribute('data-module'))
+          : draggedElement.getAttribute('data-module');
+
+        // Get current module in this slot
+        const currentModuleId = layoutConfig.rows[rowIndex]?.modules[colIndex];
+
+        // Remove dragged module from its current position
+        layoutConfig.rows.forEach(row => {
+          for (let i = 0; i < row.modules.length; i++) {
+            const mod = row.modules[i];
+            if (Array.isArray(mod)) {
+              const idx = mod.indexOf(moduleId);
+              if (idx !== -1) {
+                mod.splice(idx, 1);
+                if (mod.length === 1) {
+                  row.modules[i] = mod[0];
+                } else if (mod.length === 0) {
+                  row.modules[i] = null;
+                }
+              }
+            } else if (mod === moduleId) {
+              row.modules[i] = null;
+            }
+          }
+        });
+
+        // Create split array
+        if (currentModuleId && !Array.isArray(currentModuleId)) {
+          if (isTop) {
+            layoutConfig.rows[rowIndex].modules[colIndex] = [moduleId, currentModuleId];
+          } else {
+            layoutConfig.rows[rowIndex].modules[colIndex] = [currentModuleId, moduleId];
+          }
+        } else if (Array.isArray(currentModuleId)) {
+          if (isTop) {
+            layoutConfig.rows[rowIndex].modules[colIndex] = [moduleId, currentModuleId[1] || null];
+          } else {
+            layoutConfig.rows[rowIndex].modules[colIndex] = [currentModuleId[0] || null, moduleId];
+          }
+        } else {
+          layoutConfig.rows[rowIndex].modules[colIndex] = isTop ? [moduleId, null] : [null, moduleId];
+        }
+
+        if (isPinnedClone) {
+          pinnedDropSuccess = true;
+        }
+
+        removeSplitOverlay();
+        saveLayoutConfig();
+        renderLayout();
+        renderLayoutEditor();
+        setTimeout(() => initDragAndDrop(), 50);
+      }
+    });
+  });
+
+  splitOverlay.appendChild(topZone);
+  splitOverlay.appendChild(bottomZone);
+
+  // Position relative to the column
+  column.style.position = 'relative';
+  column.appendChild(splitOverlay);
+}
+
+function removeSplitOverlay() {
+  if (splitOverlay && splitOverlay.parentNode) {
+    splitOverlay.parentNode.removeChild(splitOverlay);
+  }
+  splitOverlay = null;
+  splitActiveColumn = null;
+  if (splitHoverTimeout) {
+    clearTimeout(splitHoverTimeout);
+    splitHoverTimeout = null;
+  }
+}
+
+function startSplitTimer(column) {
+  if (splitHoverTimeout) {
+    clearTimeout(splitHoverTimeout);
+  }
+  splitHoverTimeout = setTimeout(() => {
+    if (draggedElement && column) {
+      createSplitOverlay(column);
+    }
+  }, 5000);
+}
+
+function cancelSplitTimer() {
+  if (splitHoverTimeout) {
+    clearTimeout(splitHoverTimeout);
+    splitHoverTimeout = null;
+  }
+}
 
 function createDropZones() {
   // Create left zone (disable module)
@@ -395,6 +638,7 @@ function createDropZones() {
 
           saveLayoutConfig();
           renderLayout();
+          renderLayoutEditor();
           setTimeout(() => initDragAndDrop(), 50);
           if (window.applyModuleVisibility) window.applyModuleVisibility();
         }
@@ -687,6 +931,9 @@ function initDragAndDrop() {
 
       // Hide drop zones
       hideDropZones();
+
+      // Clean up split overlay
+      removeSplitOverlay();
     });
 
     card.addEventListener('dragover', function(e) {
@@ -723,6 +970,7 @@ function initDragAndDrop() {
             layoutConfig.rows[targetPos.rowIndex].modules[targetPos.colIndex] = draggedModuleId;
             saveLayoutConfig();
             renderLayout();
+            renderLayoutEditor();
             setTimeout(() => initDragAndDrop(), 50);
           }
         } else if (!draggedPos && targetPos) {
@@ -734,6 +982,7 @@ function initDragAndDrop() {
             }
             saveLayoutConfig();
             renderLayout();
+            renderLayoutEditor();
             setTimeout(() => initDragAndDrop(), 50);
           }
         } else if (draggedPos && !targetPos) {
@@ -749,6 +998,7 @@ function initDragAndDrop() {
             });
             saveLayoutConfig();
             renderLayout();
+            renderLayoutEditor();
             setTimeout(() => initDragAndDrop(), 50);
           }
         } else if (!draggedPos && !targetPos) {
@@ -768,11 +1018,25 @@ function initDragAndDrop() {
       e.dataTransfer.dropEffect = 'move';
       if (draggedElement) {
         this.classList.add('drag-over');
+        // Start split timer if not already active for this column
+        if (splitActiveColumn !== this && !splitHoverTimeout) {
+          startSplitTimer(this);
+        }
       }
     });
 
-    column.addEventListener('dragleave', function() {
+    column.addEventListener('dragleave', function(e) {
+      // Check if we're leaving to a child element (split overlay)
+      const relatedTarget = e.relatedTarget;
+      if (relatedTarget && this.contains(relatedTarget)) {
+        return; // Don't cancel if moving to child
+      }
       this.classList.remove('drag-over');
+      if (splitActiveColumn === this) {
+        removeSplitOverlay();
+      } else {
+        cancelSplitTimer();
+      }
     });
 
     column.addEventListener('drop', function(e) {
@@ -796,10 +1060,22 @@ function initDragAndDrop() {
         const isInRssContainer = rssContainer && rssContainer.contains(draggedElement);
         const isInDiskContainer = diskContainer && diskContainer.contains(draggedElement);
 
+        // Remove module from its current position (handle both regular and split slots)
         layoutConfig.rows.forEach(row => {
-          const idx = row.modules.indexOf(moduleId);
-          if (idx !== -1) {
-            row.modules[idx] = null;
+          for (let i = 0; i < row.modules.length; i++) {
+            const mod = row.modules[i];
+            if (Array.isArray(mod)) {
+              const idx = mod.indexOf(moduleId);
+              if (idx !== -1) {
+                mod[idx] = null;
+                // If both slots are empty, convert to null
+                if (!mod[0] && !mod[1]) {
+                  row.modules[i] = null;
+                }
+              }
+            } else if (mod === moduleId) {
+              row.modules[i] = null;
+            }
           }
         });
 
@@ -822,11 +1098,87 @@ function initDragAndDrop() {
 
         saveLayoutConfig();
         renderLayout();
+        renderLayoutEditor();
         setTimeout(() => initDragAndDrop(), 50);
       }
 
       this.classList.remove('drag-over');
       return false;
+    });
+  });
+
+  // Handle split slots (for already-split columns)
+  const splitSlots = grid.querySelectorAll('.split-slot');
+  splitSlots.forEach(slot => {
+    slot.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (draggedElement) {
+        this.style.background = 'rgba(100, 160, 120, 0.3)';
+        this.style.outline = '2px dashed rgba(100, 160, 120, 0.8)';
+      }
+    });
+
+    slot.addEventListener('dragleave', function() {
+      this.style.background = '';
+      this.style.outline = '';
+    });
+
+    slot.addEventListener('drop', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.style.background = '';
+      this.style.outline = '';
+
+      if (draggedElement) {
+        const column = this.closest('.layout-column');
+        const rowIndex = parseInt(column.dataset.rowIndex);
+        const colIndex = parseInt(column.dataset.colIndex);
+        const isTop = this.dataset.splitPosition === 'top';
+
+        const isPinnedClone = draggedElement.dataset.isPinnedClone === 'true';
+        const moduleId = isPinnedClone
+          ? (draggedElement.dataset.originalModuleId || draggedElement.getAttribute('data-module'))
+          : draggedElement.getAttribute('data-module');
+
+        // Remove module from current position
+        layoutConfig.rows.forEach(row => {
+          for (let i = 0; i < row.modules.length; i++) {
+            const mod = row.modules[i];
+            if (Array.isArray(mod)) {
+              const idx = mod.indexOf(moduleId);
+              if (idx !== -1) {
+                mod[idx] = null;
+                if (!mod[0] && !mod[1]) {
+                  row.modules[i] = null;
+                }
+              }
+            } else if (mod === moduleId) {
+              row.modules[i] = null;
+            }
+          }
+        });
+
+        // Place in split slot
+        const currentSlot = layoutConfig.rows[rowIndex].modules[colIndex];
+        if (Array.isArray(currentSlot)) {
+          if (isTop) {
+            currentSlot[0] = moduleId;
+          } else {
+            currentSlot[1] = moduleId;
+          }
+        }
+
+        if (isPinnedClone) {
+          pinnedDropSuccess = true;
+        }
+
+        saveLayoutConfig();
+        renderLayout();
+        renderLayoutEditor();
+        setTimeout(() => initDragAndDrop(), 50);
+      }
     });
   });
 
