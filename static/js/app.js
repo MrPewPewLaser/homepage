@@ -104,7 +104,15 @@ function setupIntervals() {
 
 // Initial data load
 function initialLoad() {
-  if (window.refresh) window.refresh();
+  // Start status check first but don't block on it
+  if (window.refresh) {
+    window.refresh().catch(err => {
+      // Status check failed - will be handled by refresh() itself
+      console.log("Initial status check failed, will retry:", err);
+    });
+  }
+  
+  // Load other data - these are independent
   if (window.refreshCPU) window.refreshCPU();
   if (window.refreshRAM) window.refreshRAM();
   if (window.renderDiskModules) window.renderDiskModules();

@@ -81,9 +81,41 @@ async function refreshIP() {
   }
 }
 
+// Track offline state for retry mechanism
+let isOffline = false;
+let retryInterval = null;
+
 async function refresh() {
+  const statusTextEl = document.getElementById("statusText");
+  const pulseEl = document.querySelector(".pulse");
+  
   try {
-    const res = await fetch("/api/summary", {cache:"no-store"});
+    // Use fetchWithTimeout if available, otherwise use regular fetch
+    let res;
+    if (window.fetchWithTimeout) {
+      res = await window.fetchWithTimeout("/api/summary", {cache:"no-store"}, 3000);
+    } else {
+      // Fallback: use AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      try {
+        res = await fetch("/api/summary", {cache:"no-store", signal: controller.signal});
+        clearTimeout(timeoutId);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    }
+    
+    // Check if response is successful
+    if (!res.ok) {
+      // Server returned an error status
+      setOfflineStatus(statusTextEl, pulseEl);
+      console.error("Server returned error status:", res.status);
+      startRetryMechanism();
+      return;
+    }
+
     const j = await res.json();
 
     const isLocal = j.client && j.client.isLocal;
@@ -91,10 +123,10 @@ async function refresh() {
     const statusTitle = document.getElementById("statusTitle");
     const serverInfoDiv = document.getElementById("serverInfo");
     const clientInfoDiv = document.getElementById("clientInfo");
-    const statusTextEl = document.getElementById("statusText");
 
     // Set status to Online on successful API call
-    if (statusTextEl) statusTextEl.textContent = "Online";
+    setOnlineStatus(statusTextEl, pulseEl);
+    stopRetryMechanism();
 
     if (isLocal) {
       if (statusTitle) statusTitle.textContent = "Status";
@@ -142,8 +174,52 @@ async function refresh() {
       j.server.os + "/" + j.server.arch + " • " + j.server.goVersion;
 
   } catch(err) {
-    const statusTextEl = document.getElementById("statusText");
-    if (statusTextEl) statusTextEl.textContent = "Degraded";
+    // Network error, timeout, or fetch failed (server is down/unreachable)
+    setOfflineStatus(statusTextEl, pulseEl);
+    if (err.name === 'AbortError') {
+      console.error("Request timed out - server is likely down");
+    } else {
+      console.error("Error fetching status:", err);
+    }
+    startRetryMechanism();
+  }
+}
+
+function setOfflineStatus(statusTextEl, pulseEl) {
+  isOffline = true;
+  if (statusTextEl) statusTextEl.textContent = "Offline";
+  if (pulseEl) {
+    pulseEl.style.background = "var(--bad, #ef4444)";
+    pulseEl.style.boxShadow = "0 0 0 0 rgba(239, 68, 68, 0.7)";
+  }
+}
+
+function setOnlineStatus(statusTextEl, pulseEl) {
+  isOffline = false;
+  if (statusTextEl) statusTextEl.textContent = "Online";
+  if (pulseEl) {
+    pulseEl.style.background = "";
+    pulseEl.style.boxShadow = "";
+  }
+}
+
+function startRetryMechanism() {
+  // If already retrying, don't start another interval
+  if (retryInterval) return;
+  
+  // Retry every 5 seconds when offline
+  retryInterval = setInterval(() => {
+    if (isOffline) {
+      console.log("Retrying connection to server...");
+      refresh();
+    }
+  }, 5000);
+}
+
+function stopRetryMechanism() {
+  if (retryInterval) {
+    clearInterval(retryInterval);
+    retryInterval = null;
   }
 }
 

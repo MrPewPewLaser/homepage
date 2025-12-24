@@ -19,14 +19,26 @@
   document.documentElement.setAttribute('data-template', savedTemplate);
   document.documentElement.setAttribute('data-scheme', savedScheme);
 
-  // Fetch theme CSS from API
-  fetch('/api/theme?template=' + encodeURIComponent(savedTemplate) + '&scheme=' + encodeURIComponent(savedScheme))
-    .then(function(res) { return res.text(); })
+  // Fetch theme CSS from API with timeout
+  var themeController = new AbortController();
+  var themeTimeout = setTimeout(function() { themeController.abort(); }, 2000);
+  fetch('/api/theme?template=' + encodeURIComponent(savedTemplate) + '&scheme=' + encodeURIComponent(savedScheme), {
+    signal: themeController.signal
+  })
+    .then(function(res) { 
+      clearTimeout(themeTimeout);
+      return res.text(); 
+    })
     .then(function(css) {
       var style = document.getElementById('theme-css');
       if (style) style.textContent = css;
     })
-    .catch(function(err) { console.error('Failed to load theme:', err); });
+    .catch(function(err) { 
+      clearTimeout(themeTimeout);
+      if (err.name !== 'AbortError') {
+        console.error('Failed to load theme:', err);
+      }
+    });
 
   window.addEventListener('DOMContentLoaded', function() {
     var hiddenMenus = document.createElement('div');
@@ -37,9 +49,10 @@
 })();
 </script>
 <script>
-// Service Worker Registration
+// Service Worker Registration - non-blocking
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
+  // Don't wait for load event - register immediately but don't block
+  setTimeout(function() {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then(function(registration) {
         console.log('[Service Worker] Registration successful:', registration.scope);
@@ -57,7 +70,7 @@ if ('serviceWorker' in navigator) {
       .catch(function(error) {
         console.error('[Service Worker] Registration failed:', error);
       });
-  });
+  }, 0);
 }
 </script>
 

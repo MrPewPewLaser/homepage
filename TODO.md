@@ -75,7 +75,7 @@
 ## Performance
 - [ ] Add request batching
 - [ ] Add WebSocket for real-time updates
-- [ ] Add service worker for offline support
+- [x] Add service worker for offline support
 - [ ] Add asset caching
 
 ## Integrations

@@ -84,6 +84,19 @@ function isModalOpen() {
   return false;
 }
 
+// Fetch with timeout wrapper
+function fetchWithTimeout(url, options = {}, timeout = 5000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  return fetch(url, {
+    ...options,
+    signal: controller.signal
+  }).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
 // Export to window
 window.timers = timers;
 window.updateTimer = updateTimer;
@@ -92,3 +105,4 @@ window.formatBytes = formatBytes;
 window.escapeHtml = escapeHtml;
 window.fmtUptime = fmtUptime;
 window.isModalOpen = isModalOpen;
+window.fetchWithTimeout = fetchWithTimeout;
