@@ -1,5 +1,24 @@
 // System modules: CPU, RAM, Disk, CPU Info
 
+// Disk modules configuration (stored separately, can have multiple)
+const defaultDiskModules = [];
+
+let diskModules = [];
+try {
+  const saved = localStorage.getItem('diskModules');
+  if (saved) {
+    diskModules = JSON.parse(saved);
+  } else {
+    diskModules = defaultDiskModules;
+  }
+} catch (e) {
+  diskModules = defaultDiskModules;
+}
+
+function saveDiskModules() {
+  localStorage.setItem('diskModules', JSON.stringify(diskModules));
+}
+
 async function refreshCPU() {
   try {
     const res = await fetch("/api/system", {cache:"no-store"});
@@ -36,24 +55,54 @@ async function refreshRAM() {
   }
 }
 
-async function refreshDisk() {
+async function refreshDiskSingle(mountPoint) {
   try {
-    const res = await fetch("/api/system", {cache:"no-store"});
+    const mount = mountPoint || "/";
+    const res = await fetch("/api/disk?mount=" + encodeURIComponent(mount), {cache:"no-store"});
     const j = await res.json();
-    if (j.disk && j.disk.percent !== undefined) {
-      const total = window.formatBytes(j.disk.total);
-      const used = window.formatBytes(j.disk.used);
-      const free = window.formatBytes(j.disk.free);
-      const percent = j.disk.percent;
 
-      document.getElementById("diskSummary").textContent = total + " / " + used + " / " + free;
-      document.getElementById("diskPercent").textContent = percent.toFixed(1) + "%";
-      window.updateDiskGraph(percent);
+    const safeMount = mount.replace(/[^a-zA-Z0-9]/g, '_');
+    const summaryEl = document.getElementById("diskSummary_" + safeMount);
+    const percentEl = document.getElementById("diskPercent_" + safeMount);
+    const errEl = document.getElementById("diskErr_" + safeMount);
+    const graphEl = document.getElementById("diskGraph_" + safeMount);
+
+    if (j.error) {
+      if (errEl) errEl.textContent = j.error;
+      if (summaryEl) summaryEl.textContent = "—";
+      if (percentEl) percentEl.textContent = "—";
+      return;
     }
-    window.startTimer("disk");
+
+    if (j.percent !== undefined) {
+      const total = window.formatBytes(j.total);
+      const used = window.formatBytes(j.used);
+      const free = window.formatBytes(j.free);
+      const percent = j.percent;
+
+      if (summaryEl) summaryEl.textContent = total + " / " + used + " / " + free;
+      if (percentEl) percentEl.textContent = percent.toFixed(1) + "%";
+      if (errEl) errEl.textContent = "";
+      if (graphEl && window.updateDiskGraph) {
+        window.updateDiskGraph(percent, safeMount);
+      }
+    }
   } catch(err) {
     console.error("Error refreshing Disk:", err);
+    const safeMount = (mountPoint || "/").replace(/[^a-zA-Z0-9]/g, '_');
+    const errEl = document.getElementById("diskErr_" + safeMount);
+    if (errEl) errEl.textContent = "Error loading disk";
   }
+}
+
+async function refreshAllDisks() {
+  if (!diskModules || diskModules.length === 0) return;
+  for (const mod of diskModules) {
+    if (mod.enabled && mod.mountPoint) {
+      await refreshDiskSingle(mod.mountPoint);
+    }
+  }
+  window.startTimer("disk");
 }
 
 async function refreshCPUInfo() {
@@ -432,12 +481,262 @@ async function refreshBaseboardInfo() {
   }
 }
 
+// Render disk modules dynamically
+function renderDiskModules() {
+  const container = document.getElementById('diskModulesContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  diskModules.forEach((mod, index) => {
+    if (!mod.enabled) return;
+
+    // Check if the card already exists in the DOM (in the grid or elsewhere)
+    const existingCard = document.querySelector(`[data-module="${mod.id}"]`);
+    if (existingCard) return;
+
+    const safeMount = mod.mountPoint.replace(/[^a-zA-Z0-9]/g, '_');
+    const displayName = mod.mountPoint === '/' ? 'Disk' : `Disk ${mod.mountPoint}`;
+
+    const card = document.createElement('div');
+    card.className = 'card span-4';
+    card.setAttribute('data-module', mod.id);
+    card.setAttribute('draggable', 'true');
+
+    // First disk module gets the main disk timer
+    const hasTimer = index === 0;
+    const timerId = hasTimer ? 'diskTimer' : '';
+    const timerHtml = hasTimer ? `<div class="timer-circle" id="diskTimer" title="Double-click to refresh"></div>` : '';
+
+    card.innerHTML = `
+      <h3><i class="fas fa-hdd"></i> ${displayName}<div class="header-icons">${timerHtml}<i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
+      <div class="kv-vertical">
+        <div class="k-small">Total / Used / Free</div>
+        <div class="v mono" id="diskSummary_${safeMount}">—</div>
+      </div>
+      <div class="kv-vertical">
+        <div class="k-small">Usage</div>
+        <div class="v" id="diskPercent_${safeMount}">—</div>
+      </div>
+      <div class="small" id="diskErr_${safeMount}"></div>
+      <div class="usage-graph" id="diskGraph_${safeMount}"></div>
+    `;
+
+    container.appendChild(card);
+
+    // Initialize graph for this disk
+    if (window.initGraphs) {
+      window.initGraphs();
+    }
+
+    // Add double-click handler for the timer (first module only)
+    if (hasTimer) {
+      const timerEl = document.getElementById('diskTimer');
+      if (timerEl) {
+        timerEl.addEventListener('dblclick', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          refreshAllDisks();
+        });
+      }
+    }
+  });
+
+  if (window.initDragAndDrop) {
+    setTimeout(() => window.initDragAndDrop(), 50);
+  }
+
+  refreshAllDisks();
+}
+
+// Render disk module list in preferences
+function renderDiskModuleList() {
+  const list = document.getElementById('diskModuleList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (!diskModules || diskModules.length === 0) {
+    list.innerHTML = '<div class="small" style="color:var(--muted); padding:10px;">No disk modules added yet. Click "Add" to create one.</div>';
+    return;
+  }
+
+  diskModules.forEach((mod, index) => {
+    const item = document.createElement('div');
+    item.className = 'module-item' + (mod.enabled ? '' : ' disabled');
+    item.innerHTML = `
+      <div class="module-icon"><i class="fas fa-hdd"></i></div>
+      <div class="module-info">
+        <div class="module-name">${mod.mountPoint === '/' ? 'Disk (Root)' : mod.mountPoint}</div>
+        <div class="module-desc">${mod.mountPoint}</div>
+      </div>
+      <div class="module-controls">
+        <button class="btn-small edit-disk-btn" data-index="${index}"><i class="fas fa-edit"></i></button>
+        <button class="btn-small delete-disk-btn" data-index="${index}"><i class="fas fa-trash"></i></button>
+        <input type="checkbox" ${mod.enabled ? 'checked' : ''} data-index="${index}" title="Enable/disable">
+      </div>
+    `;
+    list.appendChild(item);
+
+    const checkbox = item.querySelector('input[type="checkbox"]');
+    checkbox.addEventListener('change', () => {
+      diskModules[index].enabled = checkbox.checked;
+      item.classList.toggle('disabled', !checkbox.checked);
+      saveDiskModules();
+      renderDiskModules();
+    });
+
+    const editBtn = item.querySelector('.edit-disk-btn');
+    editBtn.addEventListener('click', () => {
+      showDiskEditDialog(index);
+    });
+
+    const deleteBtn = item.querySelector('.delete-disk-btn');
+    deleteBtn.addEventListener('click', () => {
+      if (confirm(`Delete disk module "${mod.mountPoint === '/' ? 'Disk (Root)' : mod.mountPoint}"?`)) {
+        diskModules.splice(index, 1);
+        saveDiskModules();
+        renderDiskModuleList();
+        renderDiskModules();
+      }
+    });
+  });
+}
+
+function showDiskEditDialog(index) {
+  const mod = index >= 0 ? diskModules[index] : { id: '', mountPoint: '', enabled: true };
+  const isNew = index < 0;
+
+  // Fetch available disks
+  fetch('/api/disks', {cache:"no-store"})
+    .then(res => res.json())
+    .then(data => {
+      if (data.error || !data.partitions || data.partitions.length === 0) {
+        alert('No disks available');
+        return;
+      }
+
+      const dialog = document.createElement('div');
+      dialog.className = 'modal-overlay active';
+
+      let optionsHtml = '<option value="">Select a disk...</option>';
+      data.partitions.forEach(partition => {
+        const selected = partition.mountPoint === mod.mountPoint ? 'selected' : '';
+        optionsHtml += `<option value="${partition.mountPoint}" ${selected}>${partition.mountPoint} (${partition.device}, ${partition.fsType})</option>`;
+      });
+
+      dialog.innerHTML = `
+        <div class="modal" style="max-width:500px;">
+          <div class="modal-header">
+            <h2><i class="fas fa-hdd"></i> ${isNew ? 'Add' : 'Edit'} Disk Module</h2>
+            <button class="modal-close disk-dialog-close"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="modal-content">
+            <div class="pref-section">
+              <div class="pref-row">
+                <label>Mount Point</label>
+                <select id="disk-edit-mount" style="width:100%; padding:5px;">
+                  ${optionsHtml}
+                </select>
+              </div>
+            </div>
+            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+              <button class="btn-small disk-dialog-close">Cancel</button>
+              <button class="btn-small" id="disk-save">Save</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(dialog);
+
+      function closeDialog() {
+        dialog.remove();
+      }
+
+      dialog.querySelectorAll('.disk-dialog-close').forEach(btn => {
+        btn.addEventListener('click', closeDialog);
+      });
+
+      document.getElementById('disk-save').addEventListener('click', () => {
+        const mountPoint = document.getElementById('disk-edit-mount').value.trim();
+
+        if (!mountPoint) {
+          alert('Mount point is required');
+          return;
+        }
+
+        if (isNew) {
+          const safeMount = mountPoint.replace(/[^a-zA-Z0-9]/g, '_');
+          const exists = diskModules.find(m => m.mountPoint === mountPoint);
+          if (exists) {
+            alert('This disk is already added');
+            return;
+          }
+          diskModules.push({
+            id: 'disk-' + safeMount,
+            mountPoint: mountPoint,
+            enabled: true
+          });
+        } else {
+          const safeMount = mountPoint.replace(/[^a-zA-Z0-9]/g, '_');
+          const exists = diskModules.find((m, i) => m.mountPoint === mountPoint && i !== index);
+          if (exists) {
+            alert('This disk is already added');
+            return;
+          }
+          diskModules[index].mountPoint = mountPoint;
+          diskModules[index].id = 'disk-' + safeMount;
+        }
+
+        saveDiskModules();
+        window.diskModules = diskModules;
+        renderDiskModuleList();
+        renderDiskModules();
+        // Force layout system to pick up new modules
+        if (window.layoutSystem && window.layoutSystem.renderLayout) {
+          setTimeout(() => {
+            window.layoutSystem.renderLayout();
+            if (window.initDragAndDrop) window.initDragAndDrop();
+          }, 200);
+        }
+        closeDialog();
+      });
+    })
+    .catch(err => {
+      console.error('Error fetching disks:', err);
+      alert('Error loading disks');
+    });
+}
+
+function initDisk() {
+  const addBtn = document.getElementById('addDiskBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      showDiskEditDialog(-1);
+    });
+  }
+
+  const prefsBtn = document.getElementById('prefsBtn');
+  if (prefsBtn) {
+    prefsBtn.addEventListener('click', () => {
+      renderDiskModuleList();
+    });
+  }
+
+  renderDiskModules();
+}
+
 // Export to window
 window.refreshCPU = refreshCPU;
 window.refreshRAM = refreshRAM;
-window.refreshDisk = refreshDisk;
+window.refreshDisk = refreshAllDisks;
+window.refreshDiskSingle = refreshDiskSingle;
+window.refreshAllDisks = refreshAllDisks;
+window.renderDiskModules = renderDiskModules;
+window.renderDiskModuleList = renderDiskModuleList;
 window.refreshCPUInfo = refreshCPUInfo;
 window.refreshRAMInfo = refreshRAMInfo;
 window.refreshFirmwareInfo = refreshFirmwareInfo;
 window.refreshSystemInfo = refreshSystemInfo;
 window.refreshBaseboardInfo = refreshBaseboardInfo;
+window.diskModules = diskModules;
+window.saveDiskModules = saveDiskModules;
+window.initDisk = initDisk;

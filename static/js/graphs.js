@@ -11,7 +11,7 @@ let showFullBars = false;
 // History arrays
 let cpuHistory = [];
 let ramHistory = [];
-let diskHistory = [];
+let diskHistory = {};
 
 // Load preferences from localStorage
 (function() {
@@ -42,7 +42,7 @@ let diskHistory = [];
   try {
     const saved = localStorage.getItem('diskHistory');
     if (saved) diskHistory = JSON.parse(saved);
-  } catch (e) { diskHistory = []; }
+  } catch (e) { diskHistory = {}; }
 })();
 
 function saveMinBarWidth() {
@@ -104,10 +104,13 @@ function trimHistoryArrays() {
     ramHistory = ramHistory.slice(-maxBars);
     saveRamHistory();
   }
-  if (diskHistory.length > maxBars) {
-    diskHistory = diskHistory.slice(-maxBars);
-    saveDiskHistory();
-  }
+  // Trim all disk histories
+  Object.keys(diskHistory).forEach(key => {
+    if (diskHistory[key].length > maxBars) {
+      diskHistory[key] = diskHistory[key].slice(-maxBars);
+      saveDiskHistory(key);
+    }
+  });
   return true;
 }
 
@@ -189,20 +192,52 @@ function updateRamGraph(usage) {
   updateGraph("ramGraph", ramHistory, saveRamHistory, usage);
 }
 
-function renderDiskGraph() {
-  renderGraphBars(document.getElementById("diskGraph"), diskHistory);
+function renderDiskGraph(mountKey) {
+  const key = mountKey || "default";
+  const graphId = "diskGraph_" + key;
+  const history = diskHistory[key] || [];
+  renderGraphBars(document.getElementById(graphId), history);
 }
 
-function updateDiskGraph(usage) {
-  updateGraph("diskGraph", diskHistory, saveDiskHistory, usage);
+function updateDiskGraph(usage, mountKey) {
+  const key = mountKey || "default";
+  const graphId = "diskGraph_" + key;
+
+  // Initialize history for this disk if it doesn't exist
+  if (!diskHistory[key]) {
+    diskHistory[key] = [];
+    // Try to load from localStorage
+    try {
+      const saved = localStorage.getItem('diskHistory');
+      if (saved) {
+        const allHistory = JSON.parse(saved);
+        if (allHistory[key]) {
+          diskHistory[key] = allHistory[key];
+        }
+      }
+    } catch (e) {}
+  }
+
+  updateGraph(graphId, diskHistory[key], () => saveDiskHistory(key), usage);
 }
 
 function initGraphs() {
   const graphsReady = trimHistoryArrays();
   renderCpuGraph();
   renderRamGraph();
-  renderDiskGraph();
-  if (!graphsReady && (cpuHistory.length > 0 || ramHistory.length > 0 || diskHistory.length > 0)) {
+
+  // Render all disk graphs
+  if (window.diskModules) {
+    window.diskModules.forEach(mod => {
+      if (mod.enabled && mod.mountPoint) {
+        const key = mod.mountPoint.replace(/[^a-zA-Z0-9]/g, '_');
+        renderDiskGraph(key);
+      }
+    });
+  }
+
+  const hasDiskHistory = Object.keys(diskHistory).length > 0 && Object.values(diskHistory).some(h => h.length > 0);
+  if (!graphsReady && (cpuHistory.length > 0 || ramHistory.length > 0 || hasDiskHistory)) {
     setTimeout(initGraphs, 100);
   }
 }

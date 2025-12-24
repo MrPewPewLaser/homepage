@@ -70,6 +70,11 @@ function initPreferencesModal() {
       if (tabName === 'todo' && window.renderTodosPreferenceList) {
         window.renderTodosPreferenceList();
       }
+
+      // Render disk module list when modules tab is opened
+      if (tabName === 'modules' && window.renderDiskModuleList) {
+        window.renderDiskModuleList();
+      }
     });
   });
 
@@ -241,6 +246,26 @@ function initGeneralSettings() {
       }
     });
   }
+
+  // Disk refresh interval
+  const diskIntervalInput = document.getElementById('pref-disk-interval');
+  if (diskIntervalInput && window.timers) {
+    // Load saved value or use current timer value
+    const saved = localStorage.getItem('diskInterval');
+    if (saved) {
+      diskIntervalInput.value = parseInt(saved) || 15;
+      window.timers.disk.interval = parseInt(saved) * 1000 || 15000;
+    } else {
+      diskIntervalInput.value = window.timers.disk.interval / 1000;
+    }
+
+    diskIntervalInput.addEventListener('change', () => {
+      const val = Math.max(5, Math.min(3600, parseInt(diskIntervalInput.value) || 15));
+      diskIntervalInput.value = val;
+      window.timers.disk.interval = val * 1000;
+      localStorage.setItem('diskInterval', val.toString());
+    });
+  }
 }
 
 function renderModuleList() {
@@ -408,6 +433,7 @@ function initSearchSettings() {
     });
   }
 }
+
 
 // Run when DOM is ready
 if (document.readyState === 'loading') {

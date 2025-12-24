@@ -92,9 +92,11 @@ function renderLayout() {
   const githubCards = githubContainer ? Array.from(githubContainer.querySelectorAll('.card[data-module]')) : [];
   const rssContainer = document.getElementById('rssModulesContainer');
   const rssCards = rssContainer ? Array.from(rssContainer.querySelectorAll('.card[data-module]')) : [];
+  const diskContainer = document.getElementById('diskModulesContainer');
+  const diskCards = diskContainer ? Array.from(diskContainer.querySelectorAll('.card[data-module]')) : [];
 
   // Combine and deduplicate by module ID (use first occurrence)
-  const allCards = [...gridCards, ...githubCards, ...rssCards];
+  const allCards = [...gridCards, ...githubCards, ...rssCards, ...diskCards];
   const cardsMap = new Map();
   allCards.forEach(card => {
     const moduleId = card.getAttribute('data-module');
@@ -213,6 +215,14 @@ function getModuleName(moduleId) {
       const rssModule = window.rssModules.find(m => m.id === moduleId);
       if (rssModule) {
         return rssModule.name || 'RSS Feed';
+      }
+    }
+  }
+  if (moduleId && moduleId.startsWith('disk-')) {
+    if (window.diskModules) {
+      const diskModule = window.diskModules.find(m => m.id === moduleId);
+      if (diskModule) {
+        return diskModule.mountPoint === '/' ? 'Disk' : `Disk ${diskModule.mountPoint}`;
       }
     }
   }
@@ -374,7 +384,9 @@ function initDragAndDrop() {
   const githubCards = githubContainer ? Array.from(githubContainer.querySelectorAll('.card[data-module]')) : [];
   const rssContainer = document.getElementById('rssModulesContainer');
   const rssCards = rssContainer ? Array.from(rssContainer.querySelectorAll('.card[data-module]')) : [];
-  const cards = [...gridCards, ...githubCards, ...rssCards];
+  const diskContainer = document.getElementById('diskModulesContainer');
+  const diskCards = diskContainer ? Array.from(diskContainer.querySelectorAll('.card[data-module]')) : [];
+  const cards = [...gridCards, ...githubCards, ...rssCards, ...diskCards];
   const columns = Array.from(grid.querySelectorAll('.layout-column'));
 
   cards.forEach(card => {
@@ -473,6 +485,7 @@ function initDragAndDrop() {
         } else if (!draggedPos && !targetPos) {
           if (window.renderGitHubModules) window.renderGitHubModules();
           if (window.renderRssModules) window.renderRssModules();
+          if (window.renderDiskModules) window.renderDiskModules();
         }
       }
 
@@ -504,8 +517,10 @@ function initDragAndDrop() {
 
         const githubContainer = document.getElementById('githubModulesContainer');
         const rssContainer = document.getElementById('rssModulesContainer');
+        const diskContainer = document.getElementById('diskModulesContainer');
         const isInGitHubContainer = githubContainer && githubContainer.contains(draggedElement);
         const isInRssContainer = rssContainer && rssContainer.contains(draggedElement);
+        const isInDiskContainer = diskContainer && diskContainer.contains(draggedElement);
 
         layoutConfig.rows.forEach(row => {
           const idx = row.modules.indexOf(moduleId);
@@ -518,7 +533,7 @@ function initDragAndDrop() {
           const existingModuleId = layoutConfig.rows[rowIndex].modules[colIndex];
           layoutConfig.rows[rowIndex].modules[colIndex] = moduleId;
 
-          if (existingModuleId && !isInGitHubContainer && !isInRssContainer) {
+          if (existingModuleId && !isInGitHubContainer && !isInRssContainer && !isInDiskContainer) {
             const draggedPos = findCardColumn(draggedElement);
             if (draggedPos && layoutConfig.rows[draggedPos.rowIndex]) {
               layoutConfig.rows[draggedPos.rowIndex].modules[draggedPos.colIndex] = existingModuleId;

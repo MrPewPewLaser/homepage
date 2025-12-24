@@ -4,7 +4,7 @@
 const refreshHandlers = {
   cpu: () => window.refreshCPU && window.refreshCPU(),
   ram: () => window.refreshRAM && window.refreshRAM(),
-  disk: () => window.refreshDisk && window.refreshDisk(),
+  disk: () => window.refreshAllDisks && window.refreshAllDisks(),
   github: () => window.refreshGitHub && window.refreshGitHub(true), // Force refresh on double-click
   weather: () => window.refreshWeather && window.refreshWeather(),
   ip: () => window.refreshIP && window.refreshIP(),
@@ -95,7 +95,7 @@ function setupIntervals() {
   setInterval(() => window.refresh && window.refresh(), 30000);
   setInterval(() => window.refreshCPU && window.refreshCPU(), window.timers.cpu.interval);
   setInterval(() => window.refreshRAM && window.refreshRAM(), window.timers.ram.interval);
-  setInterval(() => window.refreshDisk && window.refreshDisk(), window.timers.disk.interval);
+  setInterval(() => window.refreshAllDisks && window.refreshAllDisks(), window.timers.disk.interval);
   setInterval(() => window.refreshGitHub && window.refreshGitHub(), window.timers.github.interval);
   setInterval(() => window.refreshWeather && window.refreshWeather(), window.timers.weather.interval);
   setInterval(() => window.refreshIP && window.refreshIP(), window.timers.ip.interval);
@@ -107,7 +107,7 @@ function initialLoad() {
   if (window.refresh) window.refresh();
   if (window.refreshCPU) window.refreshCPU();
   if (window.refreshRAM) window.refreshRAM();
-  if (window.refreshDisk) window.refreshDisk();
+  if (window.renderDiskModules) window.renderDiskModules();
   if (window.refreshCPUInfo) window.refreshCPUInfo();
   if (window.refreshRAMInfo) window.refreshRAMInfo();
   if (window.refreshFirmwareInfo) window.refreshFirmwareInfo();
@@ -137,6 +137,7 @@ function initApp() {
   if (window.initMonitoring) window.initMonitoring();
   if (window.initSnmp) window.initSnmp();
   if (window.initRss) window.initRss();
+  if (window.initDisk) window.initDisk();
   if (window.initCalendar) window.initCalendar();
   if (window.initTodo) window.initTodo();
 

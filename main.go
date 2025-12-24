@@ -216,11 +216,19 @@ type RAMInfo struct {
 
 // DiskInfo contains disk storage usage information.
 type DiskInfo struct {
-	Total   uint64  `json:"total"`
-	Used    uint64  `json:"used"`
-	Free    uint64  `json:"free"`
-	Percent float64 `json:"percent"`
-	Error   string  `json:"error,omitempty"`
+	MountPoint string  `json:"mountPoint,omitempty"`
+	Total      uint64  `json:"total"`
+	Used       uint64  `json:"used"`
+	Free       uint64  `json:"free"`
+	Percent    float64 `json:"percent"`
+	Error      string  `json:"error,omitempty"`
+}
+
+// DiskPartition represents a disk partition/mount point.
+type DiskPartition struct {
+	Device     string `json:"device"`
+	MountPoint string `json:"mountPoint"`
+	FSType     string `json:"fsType"`
 }
 
 // CPUDetailsInfo contains detailed CPU information from CPUID.
@@ -922,6 +930,55 @@ func main() {
 		ctx := r.Context()
 		resp := getSystemMetrics(ctx)
 		writeJSON(w, resp)
+	})
+
+	// List all available disk partitions
+	mux.HandleFunc("/api/disks", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		partitions, err := disk.PartitionsWithContext(ctx, false)
+		if err != nil {
+			writeJSON(w, map[string]any{"error": err.Error(), "partitions": []any{}})
+			return
+		}
+
+		var result []DiskPartition
+		for _, p := range partitions {
+			// Filter out system partitions and only include real mount points
+			if p.Mountpoint != "" && p.Mountpoint != "/proc" && p.Mountpoint != "/sys" && p.Mountpoint != "/dev" {
+				result = append(result, DiskPartition{
+					Device:     p.Device,
+					MountPoint: p.Mountpoint,
+					FSType:     p.Fstype,
+				})
+			}
+		}
+		writeJSON(w, map[string]any{"partitions": result})
+	})
+
+	// Get disk usage for a specific mount point
+	mux.HandleFunc("/api/disk", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		mountPoint := r.URL.Query().Get("mount")
+		if mountPoint == "" {
+			mountPoint = "/" // Default to root
+		}
+
+		usage, err := disk.UsageWithContext(ctx, mountPoint)
+		if err != nil {
+			writeJSON(w, DiskInfo{
+				MountPoint: mountPoint,
+				Error:      err.Error(),
+			})
+			return
+		}
+
+		writeJSON(w, DiskInfo{
+			MountPoint: mountPoint,
+			Total:      usage.Total,
+			Used:       usage.Used,
+			Free:       usage.Free,
+			Percent:    usage.UsedPercent,
+		})
 	})
 
 	mux.HandleFunc("/api/cpuid", func(w http.ResponseWriter, r *http.Request) {

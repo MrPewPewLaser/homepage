@@ -146,19 +146,6 @@
         <div class="usage-graph" id="ramGraph"></div>
       </div>
 
-      <div class="card span-4" data-module="disk" draggable="true">
-        <h3><i class="fas fa-hdd"></i> Disk<div class="header-icons"><div class="timer-circle" id="diskTimer" title="Double-click to refresh"></div><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
-        <div class="kv-vertical">
-          <div class="k-small">Total / Used / Free</div>
-          <div class="v mono" id="diskSummary">—</div>
-        </div>
-        <div class="kv-vertical">
-          <div class="k-small">Usage</div>
-          <div class="v" id="diskPercent">—</div>
-        </div>
-        <div class="small" id="diskErr"></div>
-        <div class="usage-graph" id="diskGraph"></div>
-      </div>
 
       <div class="card span-4" data-module="cpuid" draggable="true">
         <h3><i class="fas fa-microchip"></i> CPU Info<div class="header-icons"><i class="fas fa-grip-vertical drag-handle" title="Drag to reorder"></i></div></h3>
@@ -249,6 +236,7 @@
 
     <div id="githubModulesContainer" class="grid" style="margin-top: 12px;"></div>
     <div id="rssModulesContainer" class="grid" style="margin-top: 12px;"></div>
+    <div id="diskModulesContainer" class="grid" style="margin-top: 12px;"></div>
   </div>
 
   <div class="footer">
@@ -303,6 +291,13 @@
                 <div class="pref-row">
                   <label>Color Scheme</label>
                   <select id="pref-scheme"></select>
+                </div>
+                <div class="pref-row">
+                  <label>Disk Refresh</label>
+                  <div class="location-input">
+                    <input type="number" id="pref-disk-interval" value="15" min="5" max="3600" style="width:80px;">
+                    <span class="small">seconds</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -495,6 +490,10 @@
           <div class="pref-section">
             <h3>RSS Modules <button class="btn-small" id="addRssBtn"><i class="fas fa-plus"></i> Add</button></h3>
             <div class="module-list" id="rssModuleList"></div>
+          </div>
+          <div class="pref-section">
+            <h3>Disk Modules <button class="btn-small" id="addDiskBtn"><i class="fas fa-plus"></i> Add</button></h3>
+            <div class="module-list" id="diskModuleList"></div>
           </div>
         </div>
 
