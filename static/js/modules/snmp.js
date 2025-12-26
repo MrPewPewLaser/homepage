@@ -59,38 +59,33 @@ function renderSnmpQueries() {
 }
 
 function moveSnmpQueryUp(index) {
-  if (index <= 0) return;
-  const temp = snmpQueries[index];
-  snmpQueries[index] = snmpQueries[index - 1];
-  snmpQueries[index - 1] = temp;
-  // Note: snmpLastValues keys are based on host:port:oid, not index, so no update needed
-  saveSnmpQueries();
-  renderSnmpList();
-  renderSnmpQueries();
-  setTimeout(refreshSnmp, 100);
+  if (window.moveArrayItemUp && window.moveArrayItemUp(snmpQueries, index)) {
+    // Note: snmpLastValues keys are based on host:port:oid, not index, so no update needed
+    saveSnmpQueries();
+    renderSnmpList();
+    renderSnmpQueries();
+    setTimeout(refreshSnmp, 100);
+  }
 }
 
 function moveSnmpQueryDown(index) {
-  if (index >= snmpQueries.length - 1) return;
-  const temp = snmpQueries[index];
-  snmpQueries[index] = snmpQueries[index + 1];
-  snmpQueries[index + 1] = temp;
-  // Note: snmpLastValues keys are based on host:port:oid, not index, so no update needed
-  saveSnmpQueries();
-  renderSnmpList();
-  renderSnmpQueries();
-  setTimeout(refreshSnmp, 100);
+  if (window.moveArrayItemDown && window.moveArrayItemDown(snmpQueries, index)) {
+    // Note: snmpLastValues keys are based on host:port:oid, not index, so no update needed
+    saveSnmpQueries();
+    renderSnmpList();
+    renderSnmpQueries();
+    setTimeout(refreshSnmp, 100);
+  }
 }
 
 function moveSnmpQuery(fromIndex, toIndex) {
-  if (fromIndex === toIndex) return;
-  const item = snmpQueries.splice(fromIndex, 1)[0];
-  snmpQueries.splice(toIndex, 0, item);
-  // Note: snmpLastValues keys are based on host:port:oid, not index, so no update needed
-  saveSnmpQueries();
-  renderSnmpList();
-  renderSnmpQueries();
-  setTimeout(refreshSnmp, 100);
+  if (window.moveArrayItem && window.moveArrayItem(snmpQueries, fromIndex, toIndex)) {
+    // Note: snmpLastValues keys are based on host:port:oid, not index, so no update needed
+    saveSnmpQueries();
+    renderSnmpList();
+    renderSnmpQueries();
+    setTimeout(refreshSnmp, 100);
+  }
 }
 
 function renderSnmpList() {
@@ -103,8 +98,6 @@ function renderSnmpList() {
     list.innerHTML = '<div class="small" style="color:var(--muted);padding:10px;">No queries yet. Click "Add" to create one.</div>';
     return;
   }
-
-  let draggedIndex = null;
 
   snmpQueries.forEach((query, index) => {
     const item = document.createElement('div');
@@ -135,52 +128,25 @@ function renderSnmpList() {
     `;
     list.appendChild(item);
 
-    // Drag and drop handlers
-    item.addEventListener('dragstart', (e) => {
-      draggedIndex = index;
-      item.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/html', item.innerHTML);
-    });
-
-    item.addEventListener('dragend', (e) => {
-      item.classList.remove('dragging');
-      list.querySelectorAll('.module-item').forEach(i => {
-        i.classList.remove('drag-over');
-      });
-      draggedIndex = null;
-    });
-
-    item.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (draggedIndex !== null && draggedIndex !== index) {
-        item.classList.add('drag-over');
-      }
-    });
-
-    item.addEventListener('dragleave', (e) => {
-      item.classList.remove('drag-over');
-    });
-
-    item.addEventListener('drop', (e) => {
-      e.preventDefault();
-      item.classList.remove('drag-over');
-      if (draggedIndex !== null && draggedIndex !== index) {
-        moveSnmpQuery(draggedIndex, index);
-      }
-    });
-
-    if (canMoveUp) {
-      item.querySelector('.move-snmp-up-btn').addEventListener('click', () => {
-        moveSnmpQueryUp(index);
+    // Setup drag and drop using common function
+    if (window.setupDragAndDrop) {
+      window.setupDragAndDrop(item, index, snmpQueries, (fromIndex, toIndex) => {
+        moveSnmpQuery(fromIndex, toIndex);
+      }, () => {
+        saveSnmpQueries();
+        renderSnmpList();
+        renderSnmpQueries();
+        setTimeout(refreshSnmp, 100);
       });
     }
 
-    if (canMoveDown) {
-      item.querySelector('.move-snmp-down-btn').addEventListener('click', () => {
-        moveSnmpQueryDown(index);
-      });
+    // Setup move buttons using common function
+    if (window.setupMoveButtons) {
+      window.setupMoveButtons(item, index, snmpQueries.length,
+        'move-snmp-up-btn', 'move-snmp-down-btn',
+        () => moveSnmpQueryUp(index),
+        () => moveSnmpQueryDown(index)
+      );
     }
 
     item.querySelector('.edit-snmp-btn').addEventListener('click', () => editSnmpQuery(index));

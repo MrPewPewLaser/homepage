@@ -274,7 +274,7 @@ function renderWeekCalendar() {
     let eventsHtml = '';
     if (events.length > 0) {
       events.slice(0, 3).forEach(evt => {
-        eventsHtml += `<div class="week-event" title="${escapeHtml(evt.title)}">${evt.time ? evt.time + ' ' : ''}${escapeHtml(evt.title)}</div>`;
+        eventsHtml += `<div class="week-event" title="${window.escapeHtml(evt.title)}">${evt.time ? evt.time + ' ' : ''}${window.escapeHtml(evt.title)}</div>`;
       });
       if (events.length > 3) {
         eventsHtml += `<div class="week-event more">+${events.length - 3} more</div>`;
@@ -334,7 +334,7 @@ function renderUpcomingEvents() {
   events.forEach(evt => {
     html += `
       <div class="kv" style="flex-direction:column; align-items:flex-start; gap:4px;">
-        <div class="v" style="font-weight:500;">${escapeHtml(evt.title)}</div>
+        <div class="v" style="font-weight:500;">${window.escapeHtml(evt.title)}</div>
         <div class="muted" style="font-size:0.85em;">${formatEventDate(evt.date, evt.time)}</div>
       </div>
     `;
@@ -342,47 +342,36 @@ function renderUpcomingEvents() {
   container.innerHTML = html;
 }
 
-// Escape HTML for safe display
-function escapeHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
+// Using escapeHtml from core.js
 
 function moveEventUp(index) {
-  if (index <= 0) return;
-  const temp = calendarEvents[index];
-  calendarEvents[index] = calendarEvents[index - 1];
-  calendarEvents[index - 1] = temp;
-  saveEvents();
-  renderEventsPreferenceList();
-  renderCalendar();
-  renderWeekCalendar();
-  renderUpcomingEvents();
+  if (window.moveArrayItemUp && window.moveArrayItemUp(calendarEvents, index)) {
+    saveEvents();
+    renderEventsPreferenceList();
+    renderCalendar();
+    renderWeekCalendar();
+    renderUpcomingEvents();
+  }
 }
 
 function moveEventDown(index) {
-  if (index >= calendarEvents.length - 1) return;
-  const temp = calendarEvents[index];
-  calendarEvents[index] = calendarEvents[index + 1];
-  calendarEvents[index + 1] = temp;
-  saveEvents();
-  renderEventsPreferenceList();
-  renderCalendar();
-  renderWeekCalendar();
-  renderUpcomingEvents();
+  if (window.moveArrayItemDown && window.moveArrayItemDown(calendarEvents, index)) {
+    saveEvents();
+    renderEventsPreferenceList();
+    renderCalendar();
+    renderWeekCalendar();
+    renderUpcomingEvents();
+  }
 }
 
 function moveEvent(fromIndex, toIndex) {
-  if (fromIndex === toIndex) return;
-  const item = calendarEvents.splice(fromIndex, 1)[0];
-  calendarEvents.splice(toIndex, 0, item);
-  saveEvents();
-  renderEventsPreferenceList();
-  renderCalendar();
-  renderWeekCalendar();
-  renderUpcomingEvents();
+  if (window.moveArrayItem && window.moveArrayItem(calendarEvents, fromIndex, toIndex)) {
+    saveEvents();
+    renderEventsPreferenceList();
+    renderCalendar();
+    renderWeekCalendar();
+    renderUpcomingEvents();
+  }
 }
 
 // Render events list in preferences
@@ -396,8 +385,6 @@ function renderEventsPreferenceList() {
     list.innerHTML = '<div class="small" style="color:var(--muted);padding:10px;">No events yet. Click "Add" to create one.</div>';
     return;
   }
-
-  let draggedIndex = null;
 
   calendarEvents.forEach((evt, index) => {
     const item = document.createElement('div');
@@ -413,7 +400,7 @@ function renderEventsPreferenceList() {
       </div>
       <div class="module-icon"><i class="fas fa-calendar-alt"></i></div>
       <div class="module-info">
-        <div class="module-name">${escapeHtml(evt.title)}</div>
+        <div class="module-name">${window.escapeHtml(evt.title)}</div>
         <div class="module-desc">${evt.date} ${evt.time || ''}</div>
       </div>
       <div class="module-controls">
@@ -429,52 +416,26 @@ function renderEventsPreferenceList() {
     `;
     list.appendChild(item);
 
-    // Drag and drop handlers
-    item.addEventListener('dragstart', (e) => {
-      draggedIndex = index;
-      item.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/html', item.innerHTML);
-    });
-
-    item.addEventListener('dragend', (e) => {
-      item.classList.remove('dragging');
-      list.querySelectorAll('.module-item').forEach(i => {
-        i.classList.remove('drag-over');
-      });
-      draggedIndex = null;
-    });
-
-    item.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (draggedIndex !== null && draggedIndex !== index) {
-        item.classList.add('drag-over');
-      }
-    });
-
-    item.addEventListener('dragleave', (e) => {
-      item.classList.remove('drag-over');
-    });
-
-    item.addEventListener('drop', (e) => {
-      e.preventDefault();
-      item.classList.remove('drag-over');
-      if (draggedIndex !== null && draggedIndex !== index) {
-        moveEvent(draggedIndex, index);
-      }
-    });
-
-    if (canMoveUp) {
-      item.querySelector('.move-event-up-btn').addEventListener('click', () => {
-        moveEventUp(index);
+    // Setup drag and drop using common function
+    if (window.setupDragAndDrop) {
+      window.setupDragAndDrop(item, index, calendarEvents, (fromIndex, toIndex) => {
+        moveEvent(fromIndex, toIndex);
+      }, () => {
+        saveEvents();
+        renderEventsPreferenceList();
+        renderCalendar();
+        renderWeekCalendar();
+        renderUpcomingEvents();
       });
     }
 
-    if (canMoveDown) {
-      item.querySelector('.move-event-down-btn').addEventListener('click', () => {
-        moveEventDown(index);
-      });
+    // Setup move buttons using common function
+    if (window.setupMoveButtons) {
+      window.setupMoveButtons(item, index, calendarEvents.length,
+        'move-event-up-btn', 'move-event-down-btn',
+        () => moveEventUp(index),
+        () => moveEventDown(index)
+      );
     }
 
     item.querySelector('.edit-event-btn').addEventListener('click', () => {

@@ -27,7 +27,7 @@ function collectAllConfig() {
 function importConfig(configData) {
   let imported = 0;
   let errors = 0;
-  
+
   for (const [key, value] of Object.entries(configData)) {
     try {
       if (typeof value === 'object') {
@@ -41,16 +41,11 @@ function importConfig(configData) {
       errors++;
     }
   }
-  
+
   return { imported, errors };
 }
 
-// Helper function for escaping HTML
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// Using escapeHtml from core.js
 
 // Load and display server configs
 async function loadServerConfigs() {
@@ -74,11 +69,11 @@ async function loadServerConfigs() {
       item.style.marginBottom = '8px';
       item.innerHTML = `
         <div class="module-info" style="flex:1;">
-          <div class="module-name">${escapeHtml(name)}</div>
+          <div class="module-name">${window.escapeHtml(name)}</div>
         </div>
         <div class="module-controls">
-          <button class="btn-small download-config-btn" data-name="${escapeHtml(name)}" title="Download and apply"><i class="fas fa-download"></i></button>
-          <button class="btn-small delete-config-btn" data-name="${escapeHtml(name)}" title="Delete"><i class="fas fa-trash"></i></button>
+          <button class="btn-small download-config-btn" data-name="${window.escapeHtml(name)}" title="Download and apply"><i class="fas fa-download"></i></button>
+          <button class="btn-small delete-config-btn" data-name="${window.escapeHtml(name)}" title="Delete"><i class="fas fa-trash"></i></button>
         </div>
       `;
 
@@ -233,4 +228,3 @@ async function loadServerConfigs() {
     });
   }
 })();
-

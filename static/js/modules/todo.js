@@ -142,32 +142,27 @@ function toggleTodo(id) {
 }
 
 function moveTodoUp(index) {
-  if (index <= 0) return;
-  const temp = todos[index];
-  todos[index] = todos[index - 1];
-  todos[index - 1] = temp;
-  saveTodos();
-  renderTodosPreferenceList();
-  renderNextTodos();
+  if (window.moveArrayItemUp && window.moveArrayItemUp(todos, index)) {
+    saveTodos();
+    renderTodosPreferenceList();
+    renderNextTodos();
+  }
 }
 
 function moveTodoDown(index) {
-  if (index >= todos.length - 1) return;
-  const temp = todos[index];
-  todos[index] = todos[index + 1];
-  todos[index + 1] = temp;
-  saveTodos();
-  renderTodosPreferenceList();
-  renderNextTodos();
+  if (window.moveArrayItemDown && window.moveArrayItemDown(todos, index)) {
+    saveTodos();
+    renderTodosPreferenceList();
+    renderNextTodos();
+  }
 }
 
 function moveTodo(fromIndex, toIndex) {
-  if (fromIndex === toIndex) return;
-  const item = todos.splice(fromIndex, 1)[0];
-  todos.splice(toIndex, 0, item);
-  saveTodos();
-  renderTodosPreferenceList();
-  renderNextTodos();
+  if (window.moveArrayItem && window.moveArrayItem(todos, fromIndex, toIndex)) {
+    saveTodos();
+    renderTodosPreferenceList();
+    renderNextTodos();
+  }
 }
 
 // Render todos list in preferences
@@ -181,8 +176,6 @@ function renderTodosPreferenceList() {
     list.innerHTML = '<div class="small" style="color:var(--muted);padding:10px;">No todos yet. Click "Add" to create one.</div>';
     return;
   }
-
-  let draggedIndex = null;
 
   todos.forEach((todo, index) => {
     const item = document.createElement('div');
@@ -204,7 +197,7 @@ function renderTodosPreferenceList() {
       <div class="module-info">
         <div class="module-name" style="display:flex; align-items:center; gap:8px;">
           <input type="checkbox" class="todo-list-checkbox" data-todo-id="${todo.id}" ${todo.completed ? 'checked' : ''} style="cursor:pointer;">
-          <span>${escapeHtml(todo.title)}</span>
+          <span>${window.escapeHtml(todo.title)}</span>
           ${priorityBadge}
         </div>
         <div class="module-desc">${todo.completed ? 'Completed' : 'Active'}${dueDateText}</div>
@@ -222,52 +215,24 @@ function renderTodosPreferenceList() {
     `;
     list.appendChild(item);
 
-    // Drag and drop handlers
-    item.addEventListener('dragstart', (e) => {
-      draggedIndex = index;
-      item.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/html', item.innerHTML);
-    });
-
-    item.addEventListener('dragend', (e) => {
-      item.classList.remove('dragging');
-      list.querySelectorAll('.module-item').forEach(i => {
-        i.classList.remove('drag-over');
-      });
-      draggedIndex = null;
-    });
-
-    item.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (draggedIndex !== null && draggedIndex !== index) {
-        item.classList.add('drag-over');
-      }
-    });
-
-    item.addEventListener('dragleave', (e) => {
-      item.classList.remove('drag-over');
-    });
-
-    item.addEventListener('drop', (e) => {
-      e.preventDefault();
-      item.classList.remove('drag-over');
-      if (draggedIndex !== null && draggedIndex !== index) {
-        moveTodo(draggedIndex, index);
-      }
-    });
-
-    if (canMoveUp) {
-      item.querySelector('.move-todo-up-btn').addEventListener('click', () => {
-        moveTodoUp(index);
+    // Setup drag and drop using common function
+    if (window.setupDragAndDrop) {
+      window.setupDragAndDrop(item, index, todos, (fromIndex, toIndex) => {
+        moveTodo(fromIndex, toIndex);
+      }, () => {
+        saveTodos();
+        renderTodosPreferenceList();
+        renderNextTodos();
       });
     }
 
-    if (canMoveDown) {
-      item.querySelector('.move-todo-down-btn').addEventListener('click', () => {
-        moveTodoDown(index);
-      });
+    // Setup move buttons using common function
+    if (window.setupMoveButtons) {
+      window.setupMoveButtons(item, index, todos.length,
+        'move-todo-up-btn', 'move-todo-down-btn',
+        () => moveTodoUp(index),
+        () => moveTodoDown(index)
+      );
     }
 
     item.querySelector('.edit-todo-btn').addEventListener('click', () => {
@@ -359,13 +324,7 @@ function saveTodoFromForm() {
   renderNextTodos();
 }
 
-// Escape HTML for safe display
-function escapeHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
+// Using escapeHtml from core.js
 
 // Initialize todo module
 function initTodo() {

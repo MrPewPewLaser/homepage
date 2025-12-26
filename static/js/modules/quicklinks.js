@@ -153,32 +153,27 @@ function renderQuicklinks() {
 }
 
 function moveQuicklinkUp(index) {
-  if (index <= 0) return;
-  const temp = quicklinks[index];
-  quicklinks[index] = quicklinks[index - 1];
-  quicklinks[index - 1] = temp;
-  saveQuicklinks();
-  renderQuicklinksList();
-  renderQuicklinks();
+  if (window.moveArrayItemUp && window.moveArrayItemUp(quicklinks, index)) {
+    saveQuicklinks();
+    renderQuicklinksList();
+    renderQuicklinks();
+  }
 }
 
 function moveQuicklinkDown(index) {
-  if (index >= quicklinks.length - 1) return;
-  const temp = quicklinks[index];
-  quicklinks[index] = quicklinks[index + 1];
-  quicklinks[index + 1] = temp;
-  saveQuicklinks();
-  renderQuicklinksList();
-  renderQuicklinks();
+  if (window.moveArrayItemDown && window.moveArrayItemDown(quicklinks, index)) {
+    saveQuicklinks();
+    renderQuicklinksList();
+    renderQuicklinks();
+  }
 }
 
 function moveQuicklink(fromIndex, toIndex) {
-  if (fromIndex === toIndex) return;
-  const item = quicklinks.splice(fromIndex, 1)[0];
-  quicklinks.splice(toIndex, 0, item);
-  saveQuicklinks();
-  renderQuicklinksList();
-  renderQuicklinks();
+  if (window.moveArrayItem && window.moveArrayItem(quicklinks, fromIndex, toIndex)) {
+    saveQuicklinks();
+    renderQuicklinksList();
+    renderQuicklinks();
+  }
 }
 
 function renderQuicklinksList() {
@@ -190,8 +185,6 @@ function renderQuicklinksList() {
     list.innerHTML = '<div class="small" style="color:var(--muted);padding:10px;">No quicklinks yet. Click "Add" to create one.</div>';
     return;
   }
-
-  let draggedIndex = null;
 
   quicklinks.forEach((link, index) => {
     const item = document.createElement('div');
@@ -222,52 +215,24 @@ function renderQuicklinksList() {
     `;
     list.appendChild(item);
 
-    // Drag and drop handlers
-    item.addEventListener('dragstart', (e) => {
-      draggedIndex = index;
-      item.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/html', item.innerHTML);
-    });
-
-    item.addEventListener('dragend', (e) => {
-      item.classList.remove('dragging');
-      list.querySelectorAll('.module-item').forEach(i => {
-        i.classList.remove('drag-over');
-      });
-      draggedIndex = null;
-    });
-
-    item.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (draggedIndex !== null && draggedIndex !== index) {
-        item.classList.add('drag-over');
-      }
-    });
-
-    item.addEventListener('dragleave', (e) => {
-      item.classList.remove('drag-over');
-    });
-
-    item.addEventListener('drop', (e) => {
-      e.preventDefault();
-      item.classList.remove('drag-over');
-      if (draggedIndex !== null && draggedIndex !== index) {
-        moveQuicklink(draggedIndex, index);
-      }
-    });
-
-    if (canMoveUp) {
-      item.querySelector('.move-ql-up-btn').addEventListener('click', () => {
-        moveQuicklinkUp(index);
+    // Setup drag and drop using common function
+    if (window.setupDragAndDrop) {
+      window.setupDragAndDrop(item, index, quicklinks, (fromIndex, toIndex) => {
+        moveQuicklink(fromIndex, toIndex);
+      }, () => {
+        saveQuicklinks();
+        renderQuicklinksList();
+        renderQuicklinks();
       });
     }
 
-    if (canMoveDown) {
-      item.querySelector('.move-ql-down-btn').addEventListener('click', () => {
-        moveQuicklinkDown(index);
-      });
+    // Setup move buttons using common function
+    if (window.setupMoveButtons) {
+      window.setupMoveButtons(item, index, quicklinks.length,
+        'move-ql-up-btn', 'move-ql-down-btn',
+        () => moveQuicklinkUp(index),
+        () => moveQuicklinkDown(index)
+      );
     }
 
     item.querySelector('.edit-ql-btn').addEventListener('click', () => {
