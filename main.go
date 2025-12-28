@@ -53,7 +53,7 @@ var (
 	templatesMap  map[string]*TemplateInfo
 	templatesList []string
 	indexTemplate *template.Template
-	appversion    = "0.2.82"
+	appversion    = "0.2.86"
 )
 
 // findBlockEnd finds the end of a CSS block (the matching closing brace)
