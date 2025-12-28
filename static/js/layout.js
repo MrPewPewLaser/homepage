@@ -127,7 +127,7 @@ function renderLayout() {
         colEl.classList.add('split-column');
         colEl.style.display = 'flex';
         colEl.style.flexDirection = 'column';
-        colEl.style.gap = '4px';
+        colEl.style.gap = '8px';
 
         // Top module
         const topWrapper = document.createElement('div');
@@ -141,7 +141,7 @@ function renderLayout() {
           const topCard = cardsMap.get(moduleSlot[0]);
           if (topCard) {
             topCard.style.height = '100%';
-            topCard.style.overflow = 'auto';
+            topCard.style.overflow = 'hidden';
             topWrapper.appendChild(topCard);
             cardsMap.delete(moduleSlot[0]);
           }
@@ -162,7 +162,7 @@ function renderLayout() {
           const bottomCard = cardsMap.get(moduleSlot[1]);
           if (bottomCard) {
             bottomCard.style.height = '100%';
-            bottomCard.style.overflow = 'auto';
+            bottomCard.style.overflow = 'hidden';
             bottomWrapper.appendChild(bottomCard);
             cardsMap.delete(moduleSlot[1]);
           }
@@ -535,14 +535,24 @@ function createSplitOverlay(column) {
   splitOverlay.appendChild(topZone);
   splitOverlay.appendChild(bottomZone);
 
-  // Position relative to the column
-  column.style.position = 'relative';
+  // Position relative to the column (only if not already set)
+  if (!column.style.position || column.style.position === 'static') {
+    column.style.position = 'relative';
+  }
   column.appendChild(splitOverlay);
 }
 
 function removeSplitOverlay() {
   if (splitOverlay && splitOverlay.parentNode) {
     splitOverlay.parentNode.removeChild(splitOverlay);
+    // Reset column position if it was only set for the overlay
+    if (splitActiveColumn && splitActiveColumn.style.position === 'relative') {
+      // Check if column actually needs relative positioning (has split slots)
+      const hasSplitSlots = splitActiveColumn.querySelector('.split-slot');
+      if (!hasSplitSlots) {
+        splitActiveColumn.style.position = '';
+      }
+    }
   }
   splitOverlay = null;
   splitActiveColumn = null;
@@ -707,7 +717,7 @@ function pinModule(element) {
     transform: translateY(-50%);
     width: 300px;
     max-height: 80vh;
-    overflow: auto;
+    overflow: hidden;
     z-index: 9998;
     box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     border: 2px solid var(--accent);
