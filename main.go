@@ -53,7 +53,7 @@ var (
 	templatesMap  map[string]*TemplateInfo
 	templatesList []string
 	indexTemplate *template.Template
-	appversion    = "0.2.82"
+	appversion    = "0.2.86"
 )
 
 // findBlockEnd finds the end of a CSS block (the matching closing brace)
@@ -542,12 +542,22 @@ func main() {
 		w.Write(swContent)
 	})
 
-	// Static files
+	// Static files with explicit Content-Type for JavaScript
 	staticContent, err := fs.Sub(staticFS, "static")
 	if err != nil {
 		log.Fatalf("Failed to create static file sub-filesystem: %v", err)
 	}
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticContent))))
+
+	// Custom handler to ensure proper Content-Type for JS files
+	mux.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if strings.HasSuffix(path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		} else if strings.HasSuffix(path, ".css") {
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		}
+		http.StripPrefix("/static/", http.FileServer(http.FS(staticContent))).ServeHTTP(w, r)
+	}))
 
 	// WebSocket handler
 	upgrader := websocket.Upgrader{

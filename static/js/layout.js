@@ -36,7 +36,7 @@ function loadLayoutConfig() {
       initializeDefaultLayout();
     }
   } catch (e) {
-    console.error('Failed to load layout config:', e);
+    if (window.debugError) window.debugError('layout', 'Failed to load layout config:', e);
     initializeDefaultLayout();
   }
 }
@@ -76,7 +76,7 @@ function saveLayoutConfig() {
   try {
     localStorage.setItem('layoutConfig', JSON.stringify(layoutConfig));
   } catch (e) {
-    console.error('Failed to save layout config:', e);
+    if (window.debugError) window.debugError('layout', 'Failed to save layout config:', e);
   }
 }
 
@@ -127,21 +127,20 @@ function renderLayout() {
         colEl.classList.add('split-column');
         colEl.style.display = 'flex';
         colEl.style.flexDirection = 'column';
-        colEl.style.gap = '4px';
+        colEl.style.gap = '8px';
 
         // Top module
         const topWrapper = document.createElement('div');
         topWrapper.className = 'split-slot split-slot-top';
         topWrapper.dataset.splitPosition = 'top';
-        topWrapper.style.flex = '1';
-        topWrapper.style.minHeight = '0';
+        topWrapper.style.flex = '0 1 auto';
         topWrapper.style.overflow = 'hidden';
 
         if (moduleSlot[0]) {
           const topCard = cardsMap.get(moduleSlot[0]);
           if (topCard) {
-            topCard.style.height = '100%';
-            topCard.style.overflow = 'auto';
+            topCard.style.height = 'auto';
+            topCard.style.overflow = 'hidden';
             topWrapper.appendChild(topCard);
             cardsMap.delete(moduleSlot[0]);
           }
@@ -154,15 +153,14 @@ function renderLayout() {
         const bottomWrapper = document.createElement('div');
         bottomWrapper.className = 'split-slot split-slot-bottom';
         bottomWrapper.dataset.splitPosition = 'bottom';
-        bottomWrapper.style.flex = '1';
-        bottomWrapper.style.minHeight = '0';
+        bottomWrapper.style.flex = '0 1 auto';
         bottomWrapper.style.overflow = 'hidden';
 
         if (moduleSlot[1]) {
           const bottomCard = cardsMap.get(moduleSlot[1]);
           if (bottomCard) {
-            bottomCard.style.height = '100%';
-            bottomCard.style.overflow = 'auto';
+            bottomCard.style.height = 'auto';
+            bottomCard.style.overflow = 'hidden';
             bottomWrapper.appendChild(bottomCard);
             cardsMap.delete(moduleSlot[1]);
           }
@@ -535,14 +533,24 @@ function createSplitOverlay(column) {
   splitOverlay.appendChild(topZone);
   splitOverlay.appendChild(bottomZone);
 
-  // Position relative to the column
-  column.style.position = 'relative';
+  // Position relative to the column (only if not already set)
+  if (!column.style.position || column.style.position === 'static') {
+    column.style.position = 'relative';
+  }
   column.appendChild(splitOverlay);
 }
 
 function removeSplitOverlay() {
   if (splitOverlay && splitOverlay.parentNode) {
     splitOverlay.parentNode.removeChild(splitOverlay);
+    // Reset column position if it was only set for the overlay
+    if (splitActiveColumn && splitActiveColumn.style.position === 'relative') {
+      // Check if column actually needs relative positioning (has split slots)
+      const hasSplitSlots = splitActiveColumn.querySelector('.split-slot');
+      if (!hasSplitSlots) {
+        splitActiveColumn.style.position = '';
+      }
+    }
   }
   splitOverlay = null;
   splitActiveColumn = null;
@@ -707,7 +715,7 @@ function pinModule(element) {
     transform: translateY(-50%);
     width: 300px;
     max-height: 80vh;
-    overflow: auto;
+    overflow: hidden;
     z-index: 9998;
     box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     border: 2px solid var(--accent);
@@ -846,7 +854,7 @@ function loadModuleOrder() {
       }
     });
   } catch (e) {
-    console.error('Failed to load module order:', e);
+    if (window.debugError) window.debugError('layout', 'Failed to load module order:', e);
   }
 }
 
@@ -1198,7 +1206,7 @@ function initDragAndDrop() {
 function initLayout() {
   grid = document.getElementById('moduleGrid');
   if (!grid) {
-    console.error('moduleGrid not found');
+    if (window.debugError) window.debugError('layout', 'moduleGrid not found');
     return;
   }
 
