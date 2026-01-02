@@ -3,6 +3,7 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"flag"
 	"html/template"
 	"io/fs"
@@ -524,6 +525,72 @@ func main() {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		_, _ = w.Write([]byte(themeCSS))
+	})
+
+	// Schemes API - returns available schemes for a template
+	mux.HandleFunc("/api/schemes", func(w http.ResponseWriter, r *http.Request) {
+		templateName := r.URL.Query().Get("template")
+		if templateName == "" {
+			http.Error(w, "template parameter required", http.StatusBadRequest)
+			return
+		}
+
+		templateInfo, exists := templatesMap[templateName]
+		if !exists {
+			http.Error(w, "template not found", http.StatusNotFound)
+			return
+		}
+
+		schemeNames := make([]string, 0, len(templateInfo.Schemes))
+		for name := range templateInfo.Schemes {
+			schemeNames = append(schemeNames, name)
+		}
+		// Sort schemes: default first, then alphabetically
+		for i := 0; i < len(schemeNames); i++ {
+			for j := i + 1; j < len(schemeNames); j++ {
+				if schemeNames[i] == "default" {
+					continue
+				}
+				if schemeNames[j] == "default" || (schemeNames[i] > schemeNames[j] && schemeNames[j] != "default") {
+					schemeNames[i], schemeNames[j] = schemeNames[j], schemeNames[i]
+				}
+			}
+		}
+
+		type SchemeResponse struct {
+			Name    string `json:"name"`
+			Display string `json:"display"`
+			Accent  string `json:"accent"`
+			Border  bool   `json:"border"`
+		}
+
+		schemes := make([]SchemeResponse, 0, len(schemeNames))
+		for _, schName := range schemeNames {
+			scheme := templateInfo.Schemes[schName]
+			displayName := scheme.Display
+			if displayName == "" {
+				parts := strings.Split(schName, "-")
+				for i, part := range parts {
+					if len(part) > 0 {
+						parts[i] = strings.ToUpper(part[:1]) + part[1:]
+					}
+				}
+				displayName = strings.Join(parts, " ")
+			}
+			schemes = append(schemes, SchemeResponse{
+				Name:    schName,
+				Display: displayName,
+				Accent:  scheme.Accent,
+				Border:  scheme.Border,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		if err := json.NewEncoder(w).Encode(schemes); err != nil {
+			http.Error(w, "failed to encode schemes", http.StatusInternalServerError)
+			return
+		}
 	})
 
 	// Register API handlers

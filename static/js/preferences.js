@@ -111,9 +111,11 @@ function initThemeSelection() {
   if (templateSelect) {
     templateSelect.value = currentTemplate;
     templateSelect.addEventListener('change', (e) => {
-      localStorage.setItem('template', e.target.value);
+      const newTemplate = e.target.value;
+      localStorage.setItem('template', newTemplate);
       // Clear scheme when template changes (schemes are template-specific)
       localStorage.removeItem('scheme');
+      // Reload to apply the new template
       location.reload();
     });
   }
@@ -124,6 +126,69 @@ function initThemeSelection() {
       location.reload();
     });
   }
+}
+
+// Populate scheme dropdown for a specific template
+function populateSchemeDropdownForTemplate(templateName) {
+  const schemeSelect = document.getElementById('pref-scheme');
+  if (!schemeSelect) return;
+
+  // Fetch schemes from API for the specified template
+  fetch(`/api/schemes?template=${encodeURIComponent(templateName)}`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to fetch schemes');
+      }
+      return response.json();
+    })
+    .then(schemes => {
+      schemeSelect.innerHTML = '';
+      schemes.forEach(scheme => {
+        const option = document.createElement('option');
+        option.value = scheme.name;
+        option.textContent = scheme.display;
+        schemeSelect.appendChild(option);
+      });
+
+      // Select the first scheme (usually "default") or the first available
+      if (schemeSelect.options.length > 0) {
+        schemeSelect.value = schemeSelect.options[0].value;
+      }
+
+      // If still empty, show a message
+      if (schemeSelect.options.length === 0) {
+        const option = document.createElement('option');
+        option.value = 'default';
+        option.textContent = 'Default';
+        option.selected = true;
+        schemeSelect.appendChild(option);
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching schemes:', error);
+      // Fallback: try to read from schemeMenu if API fails
+      const schemeMenu = document.getElementById('schemeMenu');
+      if (schemeMenu) {
+        const buttons = schemeMenu.querySelectorAll('button');
+        if (buttons.length > 0) {
+          schemeSelect.innerHTML = '';
+          buttons.forEach(btn => {
+            const option = document.createElement('option');
+            option.value = btn.dataset.scheme;
+            option.textContent = btn.textContent.trim();
+            schemeSelect.appendChild(option);
+          });
+        }
+      }
+      // If still empty, show default
+      if (schemeSelect.options.length === 0) {
+        const option = document.createElement('option');
+        option.value = 'default';
+        option.textContent = 'Default';
+        option.selected = true;
+        schemeSelect.appendChild(option);
+      }
+    });
 }
 
 // Populate scheme dropdown and set template value - called when modal opens
@@ -140,32 +205,63 @@ function populateSchemeDropdown() {
 
   if (!schemeSelect) return;
 
-  // Always repopulate in case template changed
-  const schemeMenu = document.getElementById('schemeMenu');
-  if (schemeMenu) {
-    const buttons = schemeMenu.querySelectorAll('button');
-    if (buttons.length > 0) {
+  // Fetch schemes from API for the current template
+  fetch(`/api/schemes?template=${encodeURIComponent(currentTemplate)}`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to fetch schemes');
+      }
+      return response.json();
+    })
+    .then(schemes => {
       schemeSelect.innerHTML = '';
-      buttons.forEach(btn => {
+      schemes.forEach(scheme => {
         const option = document.createElement('option');
-        option.value = btn.dataset.scheme;
-        option.textContent = btn.textContent.trim();
-        if (btn.dataset.scheme === currentScheme) {
+        option.value = scheme.name;
+        option.textContent = scheme.display;
+        if (scheme.name === currentScheme) {
           option.selected = true;
         }
         schemeSelect.appendChild(option);
       });
-    }
-  }
 
-  // If still empty, show a message
-  if (schemeSelect.options.length === 0) {
-    const option = document.createElement('option');
-    option.value = 'default';
-    option.textContent = 'Default';
-    option.selected = true;
-    schemeSelect.appendChild(option);
-  }
+      // If still empty, show a message
+      if (schemeSelect.options.length === 0) {
+        const option = document.createElement('option');
+        option.value = 'default';
+        option.textContent = 'Default';
+        option.selected = true;
+        schemeSelect.appendChild(option);
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching schemes:', error);
+      // Fallback: try to read from schemeMenu if API fails
+      const schemeMenu = document.getElementById('schemeMenu');
+      if (schemeMenu) {
+        const buttons = schemeMenu.querySelectorAll('button');
+        if (buttons.length > 0) {
+          schemeSelect.innerHTML = '';
+          buttons.forEach(btn => {
+            const option = document.createElement('option');
+            option.value = btn.dataset.scheme;
+            option.textContent = btn.textContent.trim();
+            if (btn.dataset.scheme === currentScheme) {
+              option.selected = true;
+            }
+            schemeSelect.appendChild(option);
+          });
+        }
+      }
+      // If still empty, show default
+      if (schemeSelect.options.length === 0) {
+        const option = document.createElement('option');
+        option.value = 'default';
+        option.textContent = 'Default';
+        option.selected = true;
+        schemeSelect.appendChild(option);
+      }
+    });
 }
 
 function initGeneralSettings() {
