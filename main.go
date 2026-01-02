@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -268,11 +269,22 @@ func init() {
 		log.Fatalf("Failed to read templates directory: %v", err)
 	}
 
+	// List all files found for debugging
+	allFiles := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		allFiles = append(allFiles, entry.Name())
+	}
+	log.Printf("Found %d entries in templates directory: %v", len(entries), allFiles)
+
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".css") {
+			if entry.IsDir() {
+				log.Printf("Skipping directory: %s", entry.Name())
+			}
 			continue
 		}
 
+		log.Printf("Processing template file: %s", entry.Name())
 		cssContent, err := templatesFS.ReadFile("templates/" + entry.Name())
 		if err != nil {
 			log.Printf("Warning: failed to read template %s: %v", entry.Name(), err)
@@ -281,8 +293,14 @@ func init() {
 
 		schemes, baseCSS := parseSchemesFromTemplate(string(cssContent))
 		if len(schemes) == 0 {
+			log.Printf("Warning: no schemes found in template %s", entry.Name())
 			continue
 		}
+		schemeNames := make([]string, len(schemes))
+		for i, s := range schemes {
+			schemeNames[i] = s.Name
+		}
+		log.Printf("Found %d schemes in %s: %v", len(schemes), entry.Name(), schemeNames)
 
 		// Get template name from metadata - search for a metadata block with Template:
 		templateName := ""
@@ -377,9 +395,51 @@ func sortTemplates(templates []string) []string {
 	return append(sorted, others...)
 }
 
+func listEmbeddedFiles(efs embed.FS, root string) []string {
+	var files []string
+	err := fs.WalkDir(efs, root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			// Actually try to read the file to verify it's in the binary
+			data, readErr := efs.ReadFile(path)
+			if readErr != nil {
+				log.Printf("WARNING: File %s listed but cannot be read: %v", path, readErr)
+				return nil // Continue walking
+			}
+			// File exists and is readable - include it and log size
+			files = append(files, path)
+			log.Printf("  Verified: %s (%d bytes)", path, len(data))
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("Error walking embedded filesystem %s: %v", root, err)
+		return files
+	}
+	return files
+}
+
 func main() {
 	port := flag.String("port", "8080", "Port to listen on")
 	flag.Parse()
+
+	// List and verify all embedded files (actually read them to confirm they're in binary)
+	log.Printf("Verifying embedded files in binary...")
+	var allEmbeddedFiles []string
+	templateFiles := listEmbeddedFiles(templatesFS, "templates")
+	staticFiles := listEmbeddedFiles(staticFS, "static")
+	allEmbeddedFiles = append(allEmbeddedFiles, templateFiles...)
+	allEmbeddedFiles = append(allEmbeddedFiles, staticFiles...)
+	
+	// Sort alphabetically
+	sort.Slice(allEmbeddedFiles, func(i, j int) bool {
+		return strings.ToLower(allEmbeddedFiles[i]) < strings.ToLower(allEmbeddedFiles[j])
+	})
+	
+	// Print comma-separated list
+	log.Printf("Embedded files verified in binary (%d total): %s", len(allEmbeddedFiles), strings.Join(allEmbeddedFiles, ", "))
 
 	listenAddr := ":" + *port
 	cfg := api.Config{
