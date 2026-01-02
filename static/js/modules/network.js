@@ -334,17 +334,18 @@ function updateSystemMetrics(system) {
 
   // Update RAM usage
   if (system.ram) {
-    const ramPercentEl = document.getElementById("ramPercent");
-    if (ramPercentEl && system.ram.percent !== undefined) {
-      ramPercentEl.textContent = system.ram.percent.toFixed(1) + '%';
-    }
     const ramSummaryEl = document.getElementById("ramSummary");
-    if (ramSummaryEl && system.ram.total && system.ram.used && system.ram.available) {
+    if (ramSummaryEl && system.ram.total && system.ram.used && system.ram.available && system.ram.percent !== undefined) {
       if (window.formatBytes) {
-        ramSummaryEl.textContent =
-          window.formatBytes(system.ram.total) + ' / ' +
-          window.formatBytes(system.ram.used) + ' / ' +
-          window.formatBytes(system.ram.available);
+        const total = window.formatBytes(system.ram.total);
+        const used = window.formatBytes(system.ram.used);
+        const free = window.formatBytes(system.ram.available);
+        const usedPercent = system.ram.percent;
+        const freePercent = 100 - usedPercent;
+        
+        // Format: "31.1GB / 19.52(62%)GB / 11.56(38%)GB"
+        ramSummaryEl.textContent = 
+          total + ' / ' + used + '(' + usedPercent.toFixed(0) + '%) / ' + free + '(' + freePercent.toFixed(0) + '%)';
       }
     }
     // Update RAM graph if available

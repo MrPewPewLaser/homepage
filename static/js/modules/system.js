@@ -47,12 +47,14 @@ async function refreshRAM() {
     if (j.ram && j.ram.percent !== undefined) {
       const total = window.formatBytes(j.ram.total);
       const used = window.formatBytes(j.ram.used);
-      const available = window.formatBytes(j.ram.available);
-      const percent = j.ram.percent;
+      const free = window.formatBytes(j.ram.available);
+      const usedPercent = j.ram.percent;
+      const freePercent = 100 - usedPercent;
 
-      document.getElementById("ramSummary").textContent = total + " / " + used + " / " + available;
-      document.getElementById("ramPercent").textContent = percent.toFixed(1) + "%";
-      window.updateRamGraph(percent);
+      // Format: "31.1GB / 19.52(62%)GB / 11.56(38%)GB"
+      document.getElementById("ramSummary").textContent = 
+        total + " / " + used + "(" + usedPercent.toFixed(0) + "%) / " + free + "(" + freePercent.toFixed(0) + "%)";
+      window.updateRamGraph(usedPercent);
     }
   } catch(err) {
     if (window.debugError) window.debugError('system', "Error refreshing RAM:", err);
