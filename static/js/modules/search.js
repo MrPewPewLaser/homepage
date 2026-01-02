@@ -256,6 +256,11 @@ function initSearch() {
     q.addEventListener('keydown', (e) => {
       if (e.key === "Enter") goSearch();
     });
+    // Focus the search box when page loads
+    // Use requestAnimationFrame to ensure it happens after render
+    requestAnimationFrame(() => {
+      q.focus();
+    });
   }
 
   if (engineBtn && engineMenu) {
